@@ -176,6 +176,7 @@ export interface StoreSettings {
   categories?: string[]; // Categorias genéricas customizadas
   currencySymbol?: string; // Ex: R$
   nicheDescription?: string; // Descrição do segmento da loja
+  catalogSubtitle?: string; // Subtítulo / mensagem de boas-vindas do catálogo
   // Configurações de Backup, Nuvem & Segurança
   backupWebhookUrl?: string; // URL de API externa para backup automatizado
   backupWebhookToken?: string; // Bearer token ou chave de segurança

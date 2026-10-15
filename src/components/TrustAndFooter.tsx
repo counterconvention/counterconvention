@@ -41,7 +41,7 @@ export const TrustAndFooter: React.FC = () => {
                   Entrega para Todo o Brasil
                 </h4>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Envio seguro com código de rastreamento em tempo real e seguro de mercadoria via Correios e transportadoras.
+                  Envio com código de rastreamento em tempo real e seguro de mercadoria via Correios e transportadoras.
                 </p>
               </div>
             </div>
@@ -61,14 +61,14 @@ export const TrustAndFooter: React.FC = () => {
               </div>
             </div>
 
-            {/* Selo 3: Troca Fácil e Compra Segura */}
+            {/* Selo 3: Garantia Incondicional */}
             <div className="flex items-start gap-4 p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800 shadow-xs">
               <div className="w-12 h-12 rounded-2xl bg-neutral-800 text-neutral-200 border border-neutral-700/60 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-6 h-6 text-amber-400" />
               </div>
               <div>
                 <h4 className="font-sans font-bold text-white text-base">
-                  Compra Segura & Garantia
+                  Garantia Incondicional
                 </h4>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
                   Garantia incondicional de 7 dias para troca ou devolução. Transparência e respeito em cada pedido.
@@ -245,18 +245,15 @@ export const TrustAndFooter: React.FC = () => {
 
       {/* Copyright Bar */}
       <div className="border-t border-neutral-800 bg-neutral-950/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center sm:text-left text-xs text-neutral-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-xs text-neutral-500 flex items-center justify-center">
           <button
             type="button"
             onClick={requestAdminAccess}
-            className="text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer focus:outline-none"
+            className="text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer focus:outline-none text-center"
             title="Acesso Seguro / Painel Administrativo"
           >
-            © {new Date().getFullYear()} {settings.storeName || 'Loja'}. Todos os direitos reservados.
+            © {new Date().getFullYear()} {settings.storeName || 'Replace Store'}. Todos os direitos reservados.
           </button>
-          <span className="text-[11px] text-neutral-600">
-            Painel Administrativo & Backup Integrado
-          </span>
         </div>
       </div>
     </footer>

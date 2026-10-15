@@ -185,6 +185,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!parsed.discordDisplay) parsed.discordDisplay = 'Discord Oficial';
         if (!parsed.categories || parsed.categories.length === 0) parsed.categories = DEFAULT_CATEGORIES;
         if (!parsed.currencySymbol) parsed.currencySymbol = 'R$';
+        if (!parsed.catalogSubtitle) {
+          parsed.catalogSubtitle =
+            'Selecione suas peças favoritas, confira disponibilidade de cores e tamanhos em tempo real e feche seu pedido com atendimento via WhatsApp.';
+        }
 
         const merged = { ...initialStoreSettings, ...parsed };
         return merged;
@@ -202,9 +206,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (savedV2) {
         const parsed = JSON.parse(savedV2);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const demoIds = ['conj-01', 'conj-02', 'conj-03', 'vest-01', 'vest-02', 'vest-03', 'sai-01', 'sai-02', 'cam-01', 'cam-02', 'cam-03'];
-          const real = parsed.filter((p: Product) => !demoIds.includes(p.id) && !p.id.startsWith('conj-') && !p.id.startsWith('vest-') && !p.id.startsWith('sai-') && !p.id.startsWith('cam-'));
-          return real.length > 0 ? real : initialProducts;
+          const demoIds = [
+            'prod-tech-01',
+            'prod-watch-02',
+            'prod-pack-03',
+            'prod-lamp-04',
+            'conj-01',
+            'conj-02',
+            'conj-03',
+            'vest-01',
+            'vest-02',
+            'vest-03',
+            'sai-01',
+            'sai-02',
+            'cam-01',
+            'cam-02',
+            'cam-03'
+          ];
+          const real = parsed.filter(
+            (p: Product) =>
+              !demoIds.includes(p.id) &&
+              !p.id.startsWith('conj-') &&
+              !p.id.startsWith('vest-') &&
+              !p.id.startsWith('sai-') &&
+              !p.id.startsWith('cam-') &&
+              !p.id.startsWith('prod-tech-') &&
+              !p.id.startsWith('prod-watch-') &&
+              !p.id.startsWith('prod-pack-') &&
+              !p.id.startsWith('prod-lamp-')
+          );
+          return real;
         }
       }
       return initialProducts;
@@ -740,9 +771,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     cart.forEach((item, idx) => {
       const price = item.product.isPromo && item.product.promoPrice ? item.product.promoPrice : item.product.salePrice;
       const itemTotal = price * item.quantity;
+      const isUniqueSize = ['único', 'unico', 'u', 'tamanho único', 'tamanho unico'].includes(
+        item.selectedSize.trim().toLowerCase()
+      );
       lines.push(`${idx + 1}️⃣ *${item.quantity}x ${item.product.name}*`);
       lines.push(`   ▸ Categoria: ${item.product.category}`);
-      lines.push(`   ▸ Tamanho / Opção: *${item.selectedSize}* | Cor / Var: *${item.selectedColor}*`);
+      if (isUniqueSize) {
+        lines.push(`   ▸ Cor / Variação: *${item.selectedColor}*`);
+      } else {
+        lines.push(`   ▸ Tamanho / Opção: *${item.selectedSize}* | Cor / Var: *${item.selectedColor}*`);
+      }
       if (item.product.fabric) {
         lines.push(`   ▸ Especificação: ${item.product.fabric}`);
       }
@@ -915,7 +953,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!granted) return;
     }
 
-    const firstProduct = products[0] || initialProducts[0];
+    const fallbackProduct: Product = {
+      id: 'prod-test-01',
+      name: 'Produto Exemplo (Teste)',
+      category: 'Geral',
+      salePrice: 199.9,
+      costPrice: 90.0,
+      promoPrice: 179.9,
+      isPromo: false,
+      images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600'],
+      sizes: [{ size: 'Único', quantity: 10 }],
+      colors: ['Padrão'],
+      fabric: 'Acabamento Premium',
+      description: 'Item de teste',
+      createdAt: new Date().toISOString()
+    };
+
+    const firstProduct = products[0] || fallbackProduct;
     const unitPrice = firstProduct.isPromo && firstProduct.promoPrice
       ? firstProduct.promoPrice
       : firstProduct.salePrice;

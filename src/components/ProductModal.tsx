@@ -78,6 +78,13 @@ export const ProductModal: React.FC<Props> = ({
 
   if (!product) return null;
 
+  const isSingleUniqueSize =
+    product.sizes.length === 0 ||
+    product.sizeSystem === 'generic' ||
+    product.sizes.every((s) =>
+      ['único', 'unico', 'u', 'tamanho único', 'tamanho unico'].includes(s.size.trim().toLowerCase())
+    );
+
   const currentPrice = product.isPromo && product.promoPrice ? product.promoPrice : product.salePrice;
   const currentSizeObj = product.sizes.find((s) => s.size === selectedSize);
   const stockForSelectedSize = currentSizeObj ? currentSizeObj.quantity : 0;
@@ -97,11 +104,12 @@ export const ProductModal: React.FC<Props> = ({
   const handleBuyWhatsAppNow = () => {
     const cleanNumber = (settings.whatsappNumber || '').replace(/\D/g, '');
     const totalPrice = (currentPrice * qty).toFixed(2).replace('.', ',');
+    const sizeLine = isSingleUniqueSize ? '' : `• *Tamanho / Opção:* ${selectedSize}\n`;
     const message =
       `Olá! Gostaria de fazer o pedido pelo WhatsApp:\n\n` +
       `✨ *${product.name}*\n` +
       `• *Categoria:* ${product.category}\n` +
-      `• *Tamanho / Opção:* ${selectedSize}\n` +
+      sizeLine +
       `• *Cor / Variação:* ${selectedColor}\n` +
       `• *Quantidade:* ${qty}x\n` +
       `• *Valor Total:* R$ ${totalPrice}\n\n` +
@@ -244,138 +252,140 @@ export const ProductModal: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* 5. Tamanhos Disponíveis (5 tamanhos PP a GG ou 32 a 40) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
-                  Tamanho: <span className="text-rose-700 font-extrabold">{selectedSize}</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowSizeGuide(!showSizeGuide)}
-                  className="text-xs text-rose-800 hover:text-rose-950 font-bold flex items-center gap-1 underline decoration-rose-300 cursor-pointer"
-                >
-                  <Ruler className="w-3.5 h-3.5 text-rose-600" />
-                  Guia de Medidas
-                </button>
-              </div>
-
-              {/* Grid dos 5 Tamanhos */}
-              <div className="grid grid-cols-5 gap-2">
-                {product.sizes.map((s) => {
-                  const isOut = s.quantity <= 0;
-                  const isSelected = selectedSize === s.size;
-                  return (
-                    <button
-                      key={s.size}
-                      disabled={isOut}
-                      onClick={() => {
-                        setSelectedSize(s.size);
-                        setQty(1);
-                      }}
-                      className={`py-2.5 rounded-2xl font-extrabold text-sm transition-all flex flex-col items-center justify-center cursor-pointer border ${
-                        isSelected
-                          ? 'bg-neutral-900 text-white border-neutral-900 shadow-md scale-102 ring-2 ring-neutral-900/10'
-                          : isOut
-                          ? 'bg-neutral-100 text-neutral-300 border-neutral-200 line-through cursor-not-allowed opacity-50'
-                          : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border-neutral-200 hover:border-neutral-300'
-                      }`}
-                    >
-                      <span>{s.size}</span>
-                      <span className="text-[10px] font-semibold opacity-80 mt-0.5">
-                        {isOut ? 'Esgotado' : `${s.quantity} un.`}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Tabela / Guia de Medidas Completo */}
-              {showSizeGuide && (
-                <div className="mt-3 p-3.5 bg-rose-50/80 border border-rose-200/80 rounded-2xl text-xs text-neutral-800 space-y-2 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-neutral-900 flex items-center gap-1.5">
-                      <Ruler className="w-3.5 h-3.5 text-rose-600" />
-                      Tabela de Medidas (cm):
-                    </span>
-                    <button
-                      onClick={() => setShowSizeGuide(false)}
-                      className="text-[11px] font-bold text-neutral-500 hover:text-neutral-900"
-                    >
-                      Fechar
-                    </button>
-                  </div>
-
-                  {/* Tabela de Letras (PP, P, M, G, GG) */}
-                  <div className="bg-white p-2.5 rounded-xl border border-rose-100 shadow-2xs space-y-1">
-                    <div className="font-bold text-[11px] text-rose-900">
-                      Padrão Letras (PP, P, M, G, GG):
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 text-[10px] text-center font-sans font-medium text-neutral-600">
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>PP</strong>
-                        <div>Busto: 82-86</div>
-                        <div>Cint: 64-68</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>P</strong>
-                        <div>Busto: 86-90</div>
-                        <div>Cint: 68-72</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>M</strong>
-                        <div>Busto: 92-96</div>
-                        <div>Cint: 74-78</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>G</strong>
-                        <div>Busto: 98-102</div>
-                        <div>Cint: 80-84</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>GG</strong>
-                        <div>Busto: 104-108</div>
-                        <div>Cint: 86-90</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tabela Numérica (32, 34, 36, 38, 40) */}
-                  <div className="bg-white p-2.5 rounded-xl border border-rose-100 shadow-2xs space-y-1">
-                    <div className="font-bold text-[11px] text-rose-900">
-                      Padrão Numérico (32, 34, 36, 38, 40):
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 text-[10px] text-center font-sans font-medium text-neutral-600">
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>32</strong>
-                        <div>Cint: 60-64</div>
-                        <div>Quad: 88-92</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>34</strong>
-                        <div>Cint: 64-68</div>
-                        <div>Quad: 92-96</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>36</strong>
-                        <div>Cint: 68-72</div>
-                        <div>Quad: 96-100</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>38</strong>
-                        <div>Cint: 72-76</div>
-                        <div>Quad: 100-104</div>
-                      </div>
-                      <div className="bg-neutral-50 p-1 rounded-lg">
-                        <strong>40</strong>
-                        <div>Cint: 76-80</div>
-                        <div>Quad: 104-108</div>
-                      </div>
-                    </div>
-                  </div>
+            {/* 5. Tamanhos Disponíveis (Omitido para tamanho único) */}
+            {!isSingleUniqueSize && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
+                    Tamanho: <span className="text-rose-700 font-extrabold">{selectedSize}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeGuide(!showSizeGuide)}
+                    className="text-xs text-rose-800 hover:text-rose-950 font-bold flex items-center gap-1 underline decoration-rose-300 cursor-pointer"
+                  >
+                    <Ruler className="w-3.5 h-3.5 text-rose-600" />
+                    Guia de Medidas
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {/* Grid dos Tamanhos */}
+                <div className="grid grid-cols-5 gap-2">
+                  {product.sizes.map((s) => {
+                    const isOut = s.quantity <= 0;
+                    const isSelected = selectedSize === s.size;
+                    return (
+                      <button
+                        key={s.size}
+                        disabled={isOut}
+                        onClick={() => {
+                          setSelectedSize(s.size);
+                          setQty(1);
+                        }}
+                        className={`py-2.5 rounded-2xl font-extrabold text-sm transition-all flex flex-col items-center justify-center cursor-pointer border ${
+                          isSelected
+                            ? 'bg-neutral-900 text-white border-neutral-900 shadow-md scale-102 ring-2 ring-neutral-900/10'
+                            : isOut
+                            ? 'bg-neutral-100 text-neutral-300 border-neutral-200 line-through cursor-not-allowed opacity-50'
+                            : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border-neutral-200 hover:border-neutral-300'
+                        }`}
+                      >
+                        <span>{s.size}</span>
+                        <span className="text-[10px] font-semibold opacity-80 mt-0.5">
+                          {isOut ? 'Esgotado' : `${s.quantity} un.`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tabela / Guia de Medidas Completo */}
+                {showSizeGuide && (
+                  <div className="mt-3 p-3.5 bg-rose-50/80 border border-rose-200/80 rounded-2xl text-xs text-neutral-800 space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-neutral-900 flex items-center gap-1.5">
+                        <Ruler className="w-3.5 h-3.5 text-rose-600" />
+                        Tabela de Medidas (cm):
+                      </span>
+                      <button
+                        onClick={() => setShowSizeGuide(false)}
+                        className="text-[11px] font-bold text-neutral-500 hover:text-neutral-900"
+                      >
+                        Fechar
+                      </button>
+                    </div>
+
+                    {/* Tabela de Letras (PP, P, M, G, GG) */}
+                    <div className="bg-white p-2.5 rounded-xl border border-rose-100 shadow-2xs space-y-1">
+                      <div className="font-bold text-[11px] text-rose-900">
+                        Padrão Letras (PP, P, M, G, GG):
+                      </div>
+                      <div className="grid grid-cols-5 gap-1 text-[10px] text-center font-sans font-medium text-neutral-600">
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>PP</strong>
+                          <div>Busto: 82-86</div>
+                          <div>Cint: 64-68</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>P</strong>
+                          <div>Busto: 86-90</div>
+                          <div>Cint: 68-72</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>M</strong>
+                          <div>Busto: 92-96</div>
+                          <div>Cint: 74-78</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>G</strong>
+                          <div>Busto: 98-102</div>
+                          <div>Cint: 80-84</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>GG</strong>
+                          <div>Busto: 104-108</div>
+                          <div>Cint: 86-90</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tabela Numérica (32, 34, 36, 38, 40) */}
+                    <div className="bg-white p-2.5 rounded-xl border border-rose-100 shadow-2xs space-y-1">
+                      <div className="font-bold text-[11px] text-rose-900">
+                        Padrão Numérico (32, 34, 36, 38, 40):
+                      </div>
+                      <div className="grid grid-cols-5 gap-1 text-[10px] text-center font-sans font-medium text-neutral-600">
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>32</strong>
+                          <div>Cint: 60-64</div>
+                          <div>Quad: 88-92</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>34</strong>
+                          <div>Cint: 64-68</div>
+                          <div>Quad: 92-96</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>36</strong>
+                          <div>Cint: 68-72</div>
+                          <div>Quad: 96-100</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>38</strong>
+                          <div>Cint: 72-76</div>
+                          <div>Quad: 100-104</div>
+                        </div>
+                        <div className="bg-neutral-50 p-1 rounded-lg">
+                          <strong>40</strong>
+                          <div>Cint: 76-80</div>
+                          <div>Quad: 104-108</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 6. Seletor de Quantidade & Estoque */}
             <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-2xl border border-neutral-200/70">
@@ -385,8 +395,10 @@ export const ProductModal: React.FC<Props> = ({
                 </span>
                 <span className="text-[11px] text-neutral-500 font-medium">
                   {stockForSelectedSize > 0
-                    ? `Disponível: ${stockForSelectedSize} un. no tamanho ${selectedSize}`
-                    : 'Tamanho esgotado'}
+                    ? isSingleUniqueSize
+                      ? `Disponível: ${stockForSelectedSize} un. em estoque`
+                      : `Disponível: ${stockForSelectedSize} un. no tamanho ${selectedSize}`
+                    : 'Produto esgotado'}
                 </span>
               </div>
 

@@ -27,6 +27,13 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
   const [selectedColor] = useState<string>(product.colors[0] || 'Única');
   const [addedSuccess, setAddedSuccess] = useState(false);
 
+  const isSingleUniqueSize =
+    product.sizes.length === 0 ||
+    product.sizeSystem === 'generic' ||
+    product.sizes.every((s) =>
+      ['único', 'unico', 'u', 'tamanho único', 'tamanho unico'].includes(s.size.trim().toLowerCase())
+    );
+
   const totalStock = product.sizes.reduce((acc, s) => acc + s.quantity, 0);
   const isOutOfStock = totalStock === 0;
   const isLowStock = !isOutOfStock && totalStock <= settings.lowStockThreshold;
@@ -45,7 +52,8 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
   const handleDirectWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
     const cleanNumber = (settings.whatsappNumber || '').replace(/\D/g, '');
-    const message = `Olá! Gostaria de comprar o produto *${product.name}* (${product.category}) no tamanho/opção *${selectedSize}*, cor/variação *${selectedColor}* por R$ ${currentPrice.toFixed(2).replace('.', ',')}. Está disponível?`;
+    const sizePart = isSingleUniqueSize ? '' : ` no tamanho/opção *${selectedSize}*`;
+    const message = `Olá! Gostaria de comprar o produto *${product.name}* (${product.category})${sizePart}, cor/variação *${selectedColor}* por R$ ${currentPrice.toFixed(2).replace('.', ',')}. Está disponível?`;
     window.open(`https://wa.me/${cleanNumber || '5500000000000'}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -131,36 +139,38 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
             {product.fabric || 'Alfaiataria Premium'}
           </p>
 
-          {/* Sizes Row Selector */}
-          <div
-            className="flex items-center gap-1 mt-2 flex-wrap"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mr-0.5">
-              Tam:
-            </span>
-            {product.sizes.map((s) => {
-              const out = s.quantity <= 0;
-              const isSelected = selectedSize === s.size;
-              return (
-                <button
-                  key={s.size}
-                  disabled={out}
-                  onClick={() => setSelectedSize(s.size)}
-                  title={out ? 'Tamanho esgotado' : `${s.quantity} disponíveis`}
-                  className={`w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
-                    isSelected
-                      ? 'bg-neutral-900 text-white shadow-2xs scale-105'
-                      : out
-                      ? 'bg-neutral-100 text-neutral-300 line-through cursor-not-allowed'
-                      : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-200 border border-neutral-200/90'
-                  }`}
-                >
-                  {s.size}
-                </button>
-              );
-            })}
-          </div>
+          {/* Sizes Row Selector (Omitted for unique size products) */}
+          {!isSingleUniqueSize && (
+            <div
+              className="flex items-center gap-1 mt-2 flex-wrap"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mr-0.5">
+                Tam:
+              </span>
+              {product.sizes.map((s) => {
+                const out = s.quantity <= 0;
+                const isSelected = selectedSize === s.size;
+                return (
+                  <button
+                    key={s.size}
+                    disabled={out}
+                    onClick={() => setSelectedSize(s.size)}
+                    title={out ? 'Tamanho esgotado' : `${s.quantity} disponíveis`}
+                    className={`w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                      isSelected
+                        ? 'bg-neutral-900 text-white shadow-2xs scale-105'
+                        : out
+                        ? 'bg-neutral-100 text-neutral-300 line-through cursor-not-allowed'
+                        : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-200 border border-neutral-200/90'
+                    }`}
+                  >
+                    {s.size}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Pricing & CTA */}

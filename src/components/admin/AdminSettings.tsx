@@ -67,14 +67,6 @@ export const AdminSettings: React.FC = () => {
     setFormData({ ...formData, categories: updated });
   };
 
-  const handleApplyNichePreset = (nicheName: string, sampleCategories: string[]) => {
-    setFormData({
-      ...formData,
-      nicheDescription: nicheName,
-      categories: sampleCategories
-    });
-  };
-
   const handleTestDiscord = async () => {
     if (!formData.discordWebhookUrl) return;
     setTestingDiscord(true);
@@ -163,6 +155,22 @@ export const AdminSettings: React.FC = () => {
                 placeholder="Ex: Loja e catálogo versátil multissegmento"
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-neutral-50/50 text-xs"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="font-semibold text-neutral-700 block mb-1">
+                Texto de Boas-Vindas / Subtítulo do Catálogo
+              </label>
+              <textarea
+                rows={2}
+                value={formData.catalogSubtitle ?? ''}
+                onChange={(e) => setFormData({ ...formData, catalogSubtitle: e.target.value })}
+                placeholder="Selecione suas peças favoritas, confira disponibilidade de cores e tamanhos em tempo real e feche seu pedido com atendimento via WhatsApp."
+                className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-neutral-50/50 text-xs resize-y"
+              />
+              <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                Exibido no banner de boas-vindas do catálogo na página inicial.
+              </span>
             </div>
           </div>
         </div>
@@ -479,79 +487,6 @@ export const AdminSettings: React.FC = () => {
               <p className="text-xs text-neutral-500">
                 Personalize as categorias da loja para vender qualquer tipo de produto (Tech, Acessórios, Casa, etc.).
               </p>
-            </div>
-          </div>
-
-          {/* Quick Presets */}
-          <div className="space-y-1.5">
-            <span className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider block">
-              Predefinições Rápidas de Nicho:
-            </span>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() =>
-                  handleApplyNichePreset('E-Commerce Geral & Multissegmento', [
-                    'Geral',
-                    'Eletrônicos & Tech',
-                    'Acessórios',
-                    'Casa & Estilo',
-                    'Vestuário',
-                    'Destaques'
-                  ])
-                }
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-neutral-700 font-semibold cursor-pointer"
-              >
-                Geral / Multissegmento
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleApplyNichePreset('Tecnologia, Gadgets & Audio', [
-                    'Smartphones & Acessórios',
-                    'Áudio & Headsets',
-                    'Smartwatches',
-                    'Informática',
-                    'Cabos & Carregadores'
-                  ])
-                }
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-neutral-700 font-semibold cursor-pointer"
-              >
-                Tech & Gadgets
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleApplyNichePreset('Casa, Design & Decoração', [
-                    'Iluminação & LED',
-                    'Organizadores',
-                    'Mesas & Cadeiras',
-                    'Utensílios & Cozinha',
-                    'Aromas & Velas'
-                  ])
-                }
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-neutral-700 font-semibold cursor-pointer"
-              >
-                Casa & Estilo
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleApplyNichePreset('Cosméticos, Skincare & Beleza', [
-                    'Cuidados com a Pele',
-                    'Séruns & Tratamentos',
-                    'Fragrâncias',
-                    'Cabelos',
-                    'Kits Presente'
-                  ])
-                }
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-neutral-700 font-semibold cursor-pointer"
-              >
-                Beleza & Skincare
-              </button>
             </div>
           </div>
 

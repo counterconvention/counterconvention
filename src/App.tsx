@@ -142,7 +142,8 @@ const CatalogView: React.FC = () => {
           </h1>
 
           <p className="text-xs sm:text-sm text-neutral-600 max-w-xl mx-auto font-sans leading-relaxed">
-            Selecione suas peças favoritas, confira disponibilidade de cores e tamanhos em tempo real e feche seu pedido com atendimento via WhatsApp.
+            {settings.catalogSubtitle ||
+              'Selecione suas peças favoritas, confira disponibilidade de cores e tamanhos em tempo real e feche seu pedido com atendimento via WhatsApp.'}
           </p>
         </div>
       </section>
@@ -176,17 +177,23 @@ const CatalogView: React.FC = () => {
               <Search className="w-6 h-6" />
             </div>
             <h3 className="font-bold text-neutral-900 text-lg">
-              Nenhum produto encontrado
+              {products.length === 0
+                ? 'Nenhum produto cadastrado no catálogo'
+                : 'Nenhum produto encontrado'}
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-sm mx-auto">
-              Não encontramos nenhum produto correspondente aos filtros atuais (categoria, tamanho ou faixa de preço).
+              {products.length === 0
+                ? 'Cadastre novos produtos no painel administrativo para exibi-los aqui com fotos, tamanhos e preços.'
+                : 'Não encontramos nenhum produto correspondente aos filtros atuais (categoria, tamanho ou faixa de preço).'}
             </p>
-            <button
-              onClick={handleResetFilters}
-              className="mt-5 px-5 py-2.5 bg-neutral-900 text-white hover:bg-neutral-800 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              Limpar Todos os Filtros
-            </button>
+            {products.length > 0 ? (
+              <button
+                onClick={handleResetFilters}
+                className="mt-5 px-5 py-2.5 bg-neutral-900 text-white hover:bg-neutral-800 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                Limpar Todos os Filtros
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">

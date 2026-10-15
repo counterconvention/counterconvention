@@ -347,9 +347,11 @@ export const CartDrawer: React.FC = () => {
                             </button>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-md font-semibold">
-                              Tam: {item.selectedSize}
-                            </span>
+                            {!['único', 'unico', 'u', 'tamanho único', 'tamanho unico'].includes(item.selectedSize.trim().toLowerCase()) && (
+                              <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-md font-semibold">
+                                Tam: {item.selectedSize}
+                              </span>
+                            )}
                             <span className="text-[11px] px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-md font-semibold">
                               {item.selectedColor}
                             </span>
