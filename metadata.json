@@ -1,0 +1,6 @@
+{
+  "name": "Catálogo Digital & Gestão",
+  "description": "Catálogo digital de moda feminina com integração WhatsApp e Instagram, checkout wa.me e painel administrativo completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
