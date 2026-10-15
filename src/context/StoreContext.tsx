@@ -11,6 +11,7 @@ import {
   OrderCustomer,
   CompleteStoreBackup,
   StoredBackupSnapshot,
+  BackupAnalysisResult,
   DEFAULT_CATEGORIES
 } from '../types';
 import {
@@ -115,83 +116,84 @@ interface StoreContextType {
   deleteSnapshotById: (snapshotId: string) => void;
   exportSnapshotAsJson: (snapshotIdOrData: string | CompleteStoreBackup) => void;
   exportGoogleDriveBackup: (password?: string) => Promise<{ dataString: string; filename: string }>;
+  analyzeBackup: (backupText: string, password?: string) => Promise<BackupAnalysisResult>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  SETTINGS: 'aurea_store_settings_v1',
-  PRODUCTS: 'aurea_store_products_v2',
-  ORDERS: 'aurea_store_orders_v1',
-  NOTIFICATIONS: 'aurea_store_notifications_v1',
-  CART: 'aurea_store_cart_v1',
-  LAST_ORDER_EVENT: 'aurea_last_order_event_v1',
-  SNAPSHOTS: 'counter_backup_snapshots_v1',
+export const STORAGE_KEYS = {
+  SETTINGS: 'counter_store_settings_v2',
+  PRODUCTS: 'counter_store_products_v3',
+  ORDERS: 'counter_store_orders_v2',
+  NOTIFICATIONS: 'counter_store_notifications_v2',
+  CART: 'counter_store_cart_v2',
+  LAST_ORDER_EVENT: 'counter_last_order_event_v2',
+  SNAPSHOTS: 'counter_backup_snapshots_v2',
   LAST_DAILY_BACKUP: 'counter_last_daily_backup_date'
 };
 
+export const PERSISTENCE_KEYS = {
+  SETTINGS: [
+    'counter_store_settings_v2',
+    'counter_store_settings',
+    'aurea_store_settings_v1',
+    'aurea_store_settings'
+  ],
+  PRODUCTS: [
+    'counter_store_products_v3',
+    'counter_store_products_v2',
+    'counter_store_products',
+    'aurea_store_products_v2',
+    'aurea_store_products'
+  ],
+  ORDERS: [
+    'counter_store_orders_v2',
+    'counter_store_orders',
+    'aurea_store_orders_v1'
+  ],
+  NOTIFICATIONS: [
+    'counter_store_notifications_v2',
+    'counter_store_notifications',
+    'aurea_store_notifications_v1'
+  ],
+  CART: ['counter_store_cart_v2', 'counter_store_cart'],
+  SNAPSHOTS: ['counter_backup_snapshots_v2', 'counter_backup_snapshots'],
+  LAST_ORDER_EVENT: 'counter_last_order_event_v2',
+  LAST_DAILY_BACKUP: 'counter_last_daily_backup_date'
+};
+
+export const getStoredValue = (keys: string[]): string | null => {
+  if (typeof localStorage === 'undefined') return null;
+  for (const k of keys) {
+    try {
+      const v = localStorage.getItem(k);
+      if (v !== null && v !== undefined && v.trim() !== '') return v;
+    } catch {}
+  }
+  return null;
+};
+
+export const saveToAllKeys = (keys: string[], rawValue: string) => {
+  if (typeof localStorage === 'undefined') return;
+  for (const k of keys) {
+    try {
+      localStorage.setItem(k, rawValue);
+    } catch (e) {
+      console.warn(`Could not sync key ${k}:`, e);
+    }
+  }
+};
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Settings state with automatic migration to generic Replace store & modular options
+  // 1. Settings state (preserves saved settings permanently across reloads and backup restores)
   const [settings, setSettings] = useState<StoreSettings>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      const saved = getStoredValue(PERSISTENCE_KEYS.SETTINGS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (
-          parsed.storeName === 'Áurea Moda Feminina' ||
-          parsed.storeName === 'Áurea Boutique' ||
-          parsed.storeName === 'Counter' ||
-          !parsed.storeName
-        ) {
-          parsed.storeName = 'Replace Store';
+        if (parsed && typeof parsed === 'object') {
+          return { ...initialStoreSettings, ...parsed };
         }
-        if (parsed.tagline?.includes('Elegância contemporânea') || !parsed.tagline) {
-          parsed.tagline = 'Replace your tagline here';
-        }
-        if (parsed.bannerText?.includes('299') || parsed.bannerText?.includes('Coleção Nova Disponível')) {
-          parsed.bannerText = 'Replace announcement banner text • Frete Grátis nas compras acima de R$ 500';
-        }
-        if (parsed.instagramBio?.includes('Catálogo oficial de peças') || !parsed.instagramBio) {
-          parsed.instagramBio = 'replace here bio';
-        }
-        if (
-          parsed.instagramUser === 'aurea.boutiquefem' ||
-          parsed.instagramUser === 'aurea.boutique' ||
-          parsed.instagramUser === 'counter.oficial' ||
-          !parsed.instagramUser
-        ) {
-          parsed.instagramUser = 'replace.profile';
-          parsed.instagramUrl = 'https://instagram.com/replace.profile';
-        }
-        if (
-          parsed.email === 'atendimento@counter.com.br' ||
-          parsed.email === 'atendimento@aureamoda.com.br' ||
-          !parsed.email
-        ) {
-          parsed.email = 'replace@email.com';
-        }
-        if (parsed.whatsappNumber === '5511987654321' || !parsed.whatsappNumber) {
-          parsed.whatsappNumber = '5500000000000';
-          parsed.whatsappDisplay = '(00) 00000-0000';
-        }
-        if (parsed.landline === '(11) 3456-7890' || !parsed.landline) {
-          parsed.landline = '(00) 0000-0000';
-        }
-        if (parsed.whatsappEnabled === undefined) parsed.whatsappEnabled = true;
-        if (parsed.instagramEnabled === undefined) parsed.instagramEnabled = true;
-        if (parsed.discordEnabled === undefined) parsed.discordEnabled = true;
-        if (!parsed.discordUrl) parsed.discordUrl = 'https://discord.gg/replace';
-        if (!parsed.discordServerName) parsed.discordServerName = 'Replace Community';
-        if (!parsed.discordDisplay) parsed.discordDisplay = 'Discord Oficial';
-        if (!parsed.categories || parsed.categories.length === 0) parsed.categories = DEFAULT_CATEGORIES;
-        if (!parsed.currencySymbol) parsed.currencySymbol = 'R$';
-        if (!parsed.catalogSubtitle) {
-          parsed.catalogSubtitle =
-            'Selecione suas peças favoritas, confira disponibilidade de cores e tamanhos em tempo real e feche seu pedido com atendimento via WhatsApp.';
-        }
-
-        const merged = { ...initialStoreSettings, ...parsed };
-        return merged;
       }
       return initialStoreSettings;
     } catch {
@@ -199,43 +201,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  // 2. Products state with auto-filtering of demo products
+  // 2. Products state (preserves restored products completely without deleting on reload)
   const [products, setProducts] = useState<Product[]>(() => {
     try {
-      const savedV2 = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      if (savedV2) {
-        const parsed = JSON.parse(savedV2);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const demoIds = [
-            'prod-tech-01',
-            'prod-watch-02',
-            'prod-pack-03',
-            'prod-lamp-04',
-            'conj-01',
-            'conj-02',
-            'conj-03',
-            'vest-01',
-            'vest-02',
-            'vest-03',
-            'sai-01',
-            'sai-02',
-            'cam-01',
-            'cam-02',
-            'cam-03'
-          ];
-          const real = parsed.filter(
-            (p: Product) =>
-              !demoIds.includes(p.id) &&
-              !p.id.startsWith('conj-') &&
-              !p.id.startsWith('vest-') &&
-              !p.id.startsWith('sai-') &&
-              !p.id.startsWith('cam-') &&
-              !p.id.startsWith('prod-tech-') &&
-              !p.id.startsWith('prod-watch-') &&
-              !p.id.startsWith('prod-pack-') &&
-              !p.id.startsWith('prod-lamp-')
-          );
-          return real;
+      const saved = getStoredValue(PERSISTENCE_KEYS.PRODUCTS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
       }
       return initialProducts;
@@ -244,15 +217,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  // 3. Orders state (filtering out demo orders)
+  // 3. Orders state (preserves all customer orders)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ORDERS);
+      const saved = getStoredValue(PERSISTENCE_KEYS.ORDERS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const realOrders = parsed.filter((o: Order) => !o.id.startsWith('PED-9'));
-          return realOrders;
+          return parsed;
         }
       }
       return initialOrders;
@@ -261,15 +233,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  // 4. Notifications state (filtering out demo notifications)
+  // 4. Notifications state
   const [notifications, setNotifications] = useState<SiteNotification[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+      const saved = getStoredValue(PERSISTENCE_KEYS.NOTIFICATIONS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const realNotifs = parsed.filter((n: SiteNotification) => !n.id.startsWith('notif-'));
-          return realNotifs;
+          return parsed;
         }
       }
       return initialNotifications;
@@ -281,7 +252,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 5. Cart state
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CART);
+      const saved = getStoredValue(PERSISTENCE_KEYS.CART);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -291,7 +262,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // 6. Snapshots state (Horários e Diários)
   const [snapshots, setSnapshots] = useState<StoredBackupSnapshot[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SNAPSHOTS);
+      const saved = getStoredValue(PERSISTENCE_KEYS.SNAPSHOTS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -499,45 +470,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Persist to localStorage
+  // Synchronous multi-key persistence to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-    } catch (e) {
-      console.error(e);
-    }
+    saveToAllKeys(PERSISTENCE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-    } catch (e) {
-      console.error(e);
-    }
+    saveToAllKeys(PERSISTENCE_KEYS.PRODUCTS, JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-    } catch (e) {
-      console.error(e);
-    }
+    saveToAllKeys(PERSISTENCE_KEYS.ORDERS, JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-    } catch (e) {
-      console.error(e);
-    }
+    saveToAllKeys(PERSISTENCE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
-    } catch (e) {
-      console.error(e);
-    }
+    saveToAllKeys(PERSISTENCE_KEYS.CART, JSON.stringify(cart));
   }, [cart]);
 
   // Settings update
@@ -1162,7 +1113,268 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { dataString: finalString, rawBackup: raw, checksum, isEncrypted };
   };
 
-  // Restore complete backup from text (supporting auto-decryption)
+  // Deep analyzer for any backup structure (official, raw products array, flat settings+products, Portuguese keys, encrypted)
+  const analyzeBackup = async (
+    backupText: string,
+    password?: string
+  ): Promise<BackupAnalysisResult> => {
+    let plain = backupText.trim();
+    if (!plain) {
+      return {
+        isValid: false,
+        productsCount: 0,
+        ordersCount: 0,
+        settingsCount: 0,
+        notificationsCount: 0,
+        hasProducts: false,
+        hasSettings: false,
+        hasOrders: false,
+        hasNotifications: false,
+        error: 'Nenhum conteúdo de backup fornecido.'
+      };
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(plain);
+    } catch {
+      return {
+        isValid: false,
+        productsCount: 0,
+        ordersCount: 0,
+        settingsCount: 0,
+        notificationsCount: 0,
+        hasProducts: false,
+        hasSettings: false,
+        hasOrders: false,
+        hasNotifications: false,
+        error: 'Arquivo inválido. O conteúdo não é um JSON válido.'
+      };
+    }
+
+    // Decrypt if it's an encrypted payload
+    if (parsed && typeof parsed === 'object' && parsed.cipher && parsed.salt && parsed.iv) {
+      if (!password || !password.trim()) {
+        return {
+          isValid: false,
+          productsCount: 0,
+          ordersCount: 0,
+          settingsCount: 0,
+          notificationsCount: 0,
+          hasProducts: false,
+          hasSettings: false,
+          hasOrders: false,
+          hasNotifications: false,
+          error: 'Este backup está protegido por senha. Informe a senha de descriptografia.'
+        };
+      }
+      try {
+        plain = await decryptData(plain, password.trim());
+        parsed = JSON.parse(plain);
+      } catch {
+        return {
+          isValid: false,
+          productsCount: 0,
+          ordersCount: 0,
+          settingsCount: 0,
+          notificationsCount: 0,
+          hasProducts: false,
+          hasSettings: false,
+          hasOrders: false,
+          hasNotifications: false,
+          error: 'Senha incorreta ou dados de backup corrompidos.'
+        };
+      }
+    }
+
+    // Unwrap container if wrapped in data, state, backup or payload
+    let root = parsed;
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)) {
+        root = parsed.data;
+      } else if (parsed.state && typeof parsed.state === 'object') {
+        root = parsed.state;
+      } else if (parsed.backup && typeof parsed.backup === 'object') {
+        root = parsed.backup;
+      }
+    }
+
+    // 1. Detect products
+    let rawProducts: any[] | null = null;
+    if (Array.isArray(root)) {
+      rawProducts = root;
+    } else if (root && typeof root === 'object') {
+      const candidate =
+        root.products ||
+        root.produtos ||
+        root.catalog ||
+        root.catalogo ||
+        root.items ||
+        root.itens ||
+        root.data?.products ||
+        root.data?.produtos;
+      if (Array.isArray(candidate)) {
+        rawProducts = candidate;
+      }
+    }
+
+    const sanitizedProducts: Product[] = [];
+    if (Array.isArray(rawProducts)) {
+      rawProducts.forEach((p, idx) => {
+        if (!p || typeof p !== 'object') return;
+        const name = String(p.name || p.nome || p.title || `Produto ${idx + 1}`).trim();
+        const salePrice = Number(p.salePrice ?? p.price ?? p.preco ?? p.precoVenda ?? 0);
+        const promoPrice = p.promoPrice !== undefined ? Number(p.promoPrice) : undefined;
+        const costPrice = Number(p.costPrice ?? p.custo ?? 0);
+        const category = (p.category || p.categoria || 'Geral') as ProductCategory;
+
+        let sizes = Array.isArray(p.sizes) ? p.sizes : Array.isArray(p.tamanhos) ? p.tamanhos : [];
+        if (sizes.length === 0) {
+          sizes = [{ size: 'Único' as ProductSize, quantity: 10 }];
+        }
+
+        let images = Array.isArray(p.images) ? p.images : Array.isArray(p.imagens) ? p.imagens : [];
+        if (images.length === 0 && (p.image || p.imagem || p.imageUrl)) {
+          images = [p.image || p.imagem || p.imageUrl];
+        }
+        if (images.length === 0) {
+          images = ['/src/assets/images/generic_product_headphones_1791981742572.jpg'];
+        }
+
+        let colors = Array.isArray(p.colors) ? p.colors : Array.isArray(p.cores) ? p.cores : [];
+        if (colors.length === 0) {
+          colors = typeof p.colors === 'string' ? p.colors.split(',').map((c: string) => c.trim()) : ['Padrão'];
+        }
+
+        sanitizedProducts.push({
+          id: String(p.id || `prod-${Date.now()}-${idx}`),
+          name,
+          category,
+          salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+          costPrice: Number.isFinite(costPrice) ? costPrice : 0,
+          promoPrice: Number.isFinite(promoPrice) ? promoPrice : undefined,
+          isPromo: Boolean(p.isPromo || p.emPromocao || (promoPrice !== undefined && promoPrice < salePrice)),
+          isFeatured: Boolean(p.isFeatured || p.destaque),
+          fabric: String(p.fabric || p.tecido || p.material || 'Material Durável'),
+          colors,
+          images,
+          description: String(p.description || p.descricao || ''),
+          sizeSystem:
+            p.sizeSystem ||
+            (sizes.length === 1 && ['único', 'unico', 'u'].includes(String(sizes[0].size).toLowerCase())
+              ? 'generic'
+              : 'letter'),
+          sizes,
+          sku: p.sku ? String(p.sku) : undefined,
+          createdAt: p.createdAt || new Date().toISOString()
+        });
+      });
+    }
+
+    // 2. Detect settings
+    let detectedSettings: Partial<StoreSettings> | null = null;
+    if (root && typeof root === 'object') {
+      const candidateSettings =
+        root.settings ||
+        root.configuracoes ||
+        root.config ||
+        root.storeSettings ||
+        root.data?.settings;
+
+      if (candidateSettings && typeof candidateSettings === 'object' && !Array.isArray(candidateSettings)) {
+        detectedSettings = { ...candidateSettings };
+      } else {
+        const knownKeys = [
+          'storeName',
+          'tagline',
+          'whatsappNumber',
+          'whatsappDisplay',
+          'whatsappEnabled',
+          'instagramUser',
+          'instagramUrl',
+          'instagramBio',
+          'catalogSubtitle',
+          'nicheDescription',
+          'currencySymbol',
+          'pixKey',
+          'email',
+          'landline',
+          'address',
+          'cityState',
+          'googleMapsUrl',
+          'openingHours',
+          'bannerText',
+          'bannerEnabled',
+          'lowStockThreshold',
+          'adminPin',
+          'categories',
+          'freeShippingMinimum'
+        ];
+        const hasAnyKnown = knownKeys.some((k) => k in root);
+        if (hasAnyKnown) {
+          detectedSettings = {};
+          knownKeys.forEach((k) => {
+            if (k in root) {
+              (detectedSettings as any)[k] = root[k];
+            }
+          });
+        }
+      }
+    }
+
+    // 3. Detect orders
+    let rawOrders: Order[] = [];
+    if (root && typeof root === 'object') {
+      const candidateOrders = root.orders || root.pedidos || root.data?.orders || root.data?.pedidos;
+      if (Array.isArray(candidateOrders)) {
+        rawOrders = candidateOrders;
+      }
+    }
+
+    // 4. Detect notifications
+    let rawNotifs: SiteNotification[] = [];
+    if (root && typeof root === 'object') {
+      const candidateNotifs =
+        root.notifications ||
+        root.comunicados ||
+        root.mensagens ||
+        root.notificacoes ||
+        root.data?.notifications;
+      if (Array.isArray(candidateNotifs)) {
+        rawNotifs = candidateNotifs;
+      }
+    }
+
+    const hasProducts = sanitizedProducts.length > 0;
+    const hasSettings = Boolean(detectedSettings && Object.keys(detectedSettings).length > 0);
+    const hasOrders = rawOrders.length > 0;
+    const hasNotifications = rawNotifs.length > 0;
+    const isValid = hasProducts || hasSettings || hasOrders || hasNotifications;
+
+    return {
+      isValid,
+      storeName: detectedSettings?.storeName || root?.appName || root?.storeName || undefined,
+      productsCount: sanitizedProducts.length,
+      ordersCount: rawOrders.length,
+      settingsCount: detectedSettings ? Object.keys(detectedSettings).length : 0,
+      notificationsCount: rawNotifs.length,
+      hasProducts,
+      hasSettings,
+      hasOrders,
+      hasNotifications,
+      products: sanitizedProducts,
+      settings: detectedSettings || undefined,
+      orders: rawOrders,
+      notifications: rawNotifs,
+      cart: Array.isArray(root?.cart) ? root.cart : undefined,
+      label: root?.label || root?.appName,
+      version: root?.version,
+      exportedAt: root?.exportedAt || root?.dateFormatted,
+      error: isValid ? undefined : 'Nenhuma entidade reconhecível encontrada no arquivo de backup.'
+    };
+  };
+
+  // Restore complete backup from text (supporting auto-decryption, robust multi-key storage & immediate reload safety)
   const restoreCompleteBackup = async (
     backupText: string,
     password?: string
@@ -1176,95 +1388,103 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ordersCount: number;
     };
   }> => {
-    let plain = backupText.trim();
-
-    // Check if input is encrypted JSON structure
-    let parsed: any;
-    try {
-      parsed = JSON.parse(plain);
-    } catch {
-      return { success: false, message: 'Formato inválido. Certifique-se de colar o JSON do backup completo.' };
-    }
-
-    // Decrypt if it's an encrypted payload
-    if (parsed.cipher && parsed.salt && parsed.iv) {
-      if (!password || !password.trim()) {
-        return {
-          success: false,
-          message: 'Este backup está protegido por senha/criptografia. Por favor, informe a senha para restaurar.'
-        };
-      }
-      try {
-        plain = await decryptData(plain, password.trim());
-        parsed = JSON.parse(plain);
-      } catch {
-        return { success: false, message: 'Senha incorreta ou dados de backup corrompidos.' };
-      }
-    }
-
-    // Validate that at least one main entity exists
-    if (!parsed.settings && !parsed.products && !parsed.orders && !parsed.notifications) {
+    const analysis = await analyzeBackup(backupText, password);
+    if (!analysis.isValid) {
       return {
         success: false,
-        message: 'O arquivo não contém os dados esperados de backup (configurações, produtos, pedidos ou comunicados).'
+        message: analysis.error || 'O arquivo não contém os dados esperados de backup.'
       };
     }
 
     let settingsCount = 0;
-    if (parsed.settings && typeof parsed.settings === 'object') {
-      setSettings((prev) => {
-        const merged = { ...prev, ...parsed.settings };
-        try {
-          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
-        } catch {}
-        return merged;
-      });
-      settingsCount = Object.keys(parsed.settings).length;
+    let finalSettings = settings;
+    if (analysis.settings && Object.keys(analysis.settings).length > 0) {
+      finalSettings = {
+        ...initialStoreSettings,
+        ...settings,
+        ...analysis.settings
+      };
+      saveToAllKeys(PERSISTENCE_KEYS.SETTINGS, JSON.stringify(finalSettings));
+      setSettings(finalSettings);
+      settingsCount = Object.keys(analysis.settings).length;
     }
 
     let productsCount = 0;
-    if (Array.isArray(parsed.products)) {
-      setProducts(parsed.products);
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(parsed.products));
-      } catch {}
-      productsCount = parsed.products.length;
+    let finalProducts = products;
+    if (analysis.products && analysis.hasProducts) {
+      finalProducts = analysis.products;
+      saveToAllKeys(PERSISTENCE_KEYS.PRODUCTS, JSON.stringify(finalProducts));
+      setProducts(finalProducts);
+      productsCount = finalProducts.length;
     }
 
     let ordersCount = 0;
-    if (Array.isArray(parsed.orders)) {
-      setOrders(parsed.orders);
-      try {
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(parsed.orders));
-      } catch {}
-      ordersCount = parsed.orders.length;
+    let finalOrders = orders;
+    if (analysis.orders && analysis.hasOrders) {
+      finalOrders = analysis.orders;
+      saveToAllKeys(PERSISTENCE_KEYS.ORDERS, JSON.stringify(finalOrders));
+      setOrders(finalOrders);
+      ordersCount = finalOrders.length;
     }
 
     let notificationsCount = 0;
-    if (Array.isArray(parsed.notifications)) {
-      setNotifications(parsed.notifications);
-      try {
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(parsed.notifications));
-      } catch {}
-      notificationsCount = parsed.notifications.length;
+    let finalNotifs = notifications;
+    if (analysis.notifications && analysis.hasNotifications) {
+      finalNotifs = analysis.notifications;
+      saveToAllKeys(PERSISTENCE_KEYS.NOTIFICATIONS, JSON.stringify(finalNotifs));
+      setNotifications(finalNotifs);
+      notificationsCount = finalNotifs.length;
     }
 
-    if (Array.isArray(parsed.cart)) {
-      setCart(parsed.cart);
-      try {
-        localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(parsed.cart));
-      } catch {}
+    if (analysis.cart) {
+      saveToAllKeys(PERSISTENCE_KEYS.CART, JSON.stringify(analysis.cart));
+      setCart(analysis.cart);
     }
+
+    // Save automatic safety snapshot in history
+    const now = new Date();
+    const timeFormatted = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dateFormatted = now.toLocaleDateString('pt-BR');
+    const safetySnapshot: StoredBackupSnapshot = {
+      id: `snap-restored-${now.getTime()}`,
+      timestamp: now.getTime(),
+      isoDate: now.toISOString(),
+      dateFormatted,
+      timeFormatted,
+      label: `Restauração Concluída (${dateFormatted} ${timeFormatted})`,
+      type: 'manual',
+      productsCount: finalProducts.length,
+      ordersCount: finalOrders.length,
+      settingsCount: Object.keys(finalSettings).length,
+      notificationsCount: finalNotifs.length,
+      data: {
+        version: '2.0',
+        appName: finalSettings.storeName || 'Loja',
+        exportedAt: now.toISOString(),
+        settings: finalSettings,
+        products: finalProducts,
+        orders: finalOrders,
+        notifications: finalNotifs,
+        timeFormatted,
+        dateFormatted
+      }
+    };
+
+    setSnapshots((prev) => {
+      const updated = [safetySnapshot, ...prev.filter((s) => s.id !== safetySnapshot.id)].slice(0, 30);
+      saveToAllKeys(PERSISTENCE_KEYS.SNAPSHOTS, JSON.stringify(updated));
+      return updated;
+    });
 
     addNotification({
       title: '📦 Backup Completo Restaurado!',
-      message: `Restauração concluída: ${productsCount} produtos, ${ordersCount} pedidos, ${settingsCount} configurações e ${notificationsCount} comunicados importados.`,
+      message: `Restauração concluída: ${productsCount} produtos, ${ordersCount} pedidos e ${settingsCount} configurações gravados com persistência garantida.`,
       type: 'info'
     });
 
     return {
       success: true,
-      message: 'Backup restaurado com sucesso!',
+      message: `Backup restaurado com sucesso! ${productsCount} produtos e configurações gravados com persistência garantida.`,
       stats: { settingsCount, notificationsCount, productsCount, ordersCount }
     };
   };
@@ -1538,7 +1758,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         restoreSnapshotById,
         deleteSnapshotById,
         exportSnapshotAsJson,
-        exportGoogleDriveBackup
+        exportGoogleDriveBackup,
+        analyzeBackup
       }}
     >
       {children}

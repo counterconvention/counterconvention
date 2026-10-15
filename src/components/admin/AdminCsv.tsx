@@ -9,34 +9,27 @@ import {
   parseSettingsCsv,
   parseNotificationsCsv
 } from '../../utils/csv';
-import { Product, StoreSettings, SiteNotification, StoredBackupSnapshot } from '../../types';
+import { Product, StoreSettings, SiteNotification, StoredBackupSnapshot, BackupAnalysisResult } from '../../types';
 import {
   FileSpreadsheet,
   Download,
   Upload,
-  HardDrive,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Copy,
   Check,
   ShieldCheck,
   RefreshCw,
-  Globe,
   Clock,
   Database,
-  Sliders,
-  Bell,
-  ShoppingBag,
-  ClipboardList,
-  Eye,
-  EyeOff,
   Trash2,
   Sparkles,
-  Zap,
-  FolderDown,
-  History,
-  CheckCheck
+  FileJson,
+  ShoppingBag,
+  Layers,
+  Sliders,
+  RotateCcw,
+  ExternalLink
 } from 'lucide-react';
 
 export const AdminCsv: React.FC = () => {
@@ -45,40 +38,43 @@ export const AdminCsv: React.FC = () => {
     orders,
     settings,
     notifications,
-    updateSettings,
     importProductsList,
     importSettingsFromCsv,
     importNotificationsFromCsv,
     getCompleteBackupData,
     restoreCompleteBackup,
-    syncBackupToCloudApi,
+    analyzeBackup,
     snapshots,
     createHourlySnapshot,
     restoreSnapshotById,
     deleteSnapshotById,
     exportSnapshotAsJson,
-    exportGoogleDriveBackup
+    setCurrentView
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'hourly' | 'drive' | 'migration' | 'csv'>('hourly');
+  const [activeTab, setActiveTab] = useState<'backup-restore' | 'history' | 'csv'>('backup-restore');
 
   // Snapshot creation state
   const [snapshotLabel, setSnapshotLabel] = useState('');
   const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
 
-  // Migration & Full Backup state
-  const [backupPassword, setBackupPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [copiedBackup, setCopiedBackup] = useState(false);
+  // Restore state
   const [restoreText, setRestoreText] = useState('');
+  const [restoreFileName, setRestoreFileName] = useState('');
   const [restorePassword, setRestorePassword] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzedData, setAnalyzedData] = useState<BackupAnalysisResult | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [copiedBackup, setCopiedBackup] = useState(false);
+  const [justRestoredStats, setJustRestoredStats] = useState<{
+    productsCount: number;
+    ordersCount: number;
+    settingsCount: number;
+    storeName?: string;
+  } | null>(null);
 
-  // Cloud API Sync state
-  const [webhookUrl, setWebhookUrl] = useState(settings.backupWebhookUrl || '');
-  const [webhookToken, setWebhookToken] = useState(settings.backupWebhookToken || '');
-  const [syncPassword, setSyncPassword] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
+  // In-app modal confirmation for snapshot restoration (replaces blocking window.confirm)
+  const [snapshotToRestore, setSnapshotToRestore] = useState<StoredBackupSnapshot | null>(null);
 
   // CSV Import state
   const [csvImportType, setCsvImportType] = useState<'products' | 'settings' | 'notifications'>('products');
@@ -92,201 +88,175 @@ export const AdminCsv: React.FC = () => {
   // Global Feedback banner
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const showNotificationFeedback = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+  const showFeedback = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setFeedback({ text, type });
-    setTimeout(() => setFeedback(null), 6000);
+    setTimeout(() => setFeedback(null), 7000);
   };
 
-  // 1. Create on-demand Snapshot by hour with 1-click
-  const handleCreateSnapshot = async () => {
-    setIsCreatingSnapshot(true);
-    try {
-      const snap = await createHourlySnapshot(snapshotLabel.trim() || undefined, 'hourly');
-      setSnapshotLabel('');
-      showNotificationFeedback(
-        `Ponto de restauração das ${snap.timeFormatted} criado com sucesso! Contém ${snap.productsCount} produtos, ${snap.ordersCount} pedidos e todas as configurações.`,
-        'success'
-      );
-    } catch (err: any) {
-      showNotificationFeedback('Erro ao criar ponto de restauração: ' + err.message, 'error');
-    } finally {
-      setIsCreatingSnapshot(false);
-    }
-  };
-
-  // 2. Restore Snapshot by ID with 1-click
-  const handleRestoreSnapshot = async (snap: StoredBackupSnapshot) => {
-    if (
-      !confirm(
-        `Deseja restaurar o backup de "${snap.dateFormatted} às ${snap.timeFormatted}"? Todas as configurações, produtos e pedidos serão restaurados exatamente como estavam nesse horário.`
-      )
-    ) {
-      return;
-    }
-
-    setIsRestoring(true);
-    try {
-      const res = await restoreSnapshotById(snap.id);
-      if (res.success) {
-        showNotificationFeedback(
-          `Backup das ${snap.timeFormatted} restaurado com sucesso! (${res.stats?.productsCount || 0} produtos, ${res.stats?.ordersCount || 0} pedidos, ${res.stats?.settingsCount || 0} configs).`,
-          'success'
-        );
-      } else {
-        showNotificationFeedback(res.message, 'error');
-      }
-    } catch (err: any) {
-      showNotificationFeedback('Erro ao restaurar: ' + err.message, 'error');
-    } finally {
-      setIsRestoring(false);
-    }
-  };
-
-  // 3. Export to Google Drive
-  const handleGoogleDriveExport = async () => {
-    try {
-      const { filename } = await exportGoogleDriveBackup();
-      showNotificationFeedback(
-        `Arquivo "${filename}" pronto! Agora basta abrir sua pasta do Google Drive e salvar uma cópia segura.`,
-        'success'
-      );
-    } catch (err: any) {
-      showNotificationFeedback('Erro ao exportar para o Google Drive: ' + err.message, 'error');
-    }
-  };
-
-  // 4. Copy complete backup string
-  const handleCopyCompleteBackup = async () => {
-    try {
-      const { dataString, checksum, isEncrypted } = await getCompleteBackupData(backupPassword);
-      await navigator.clipboard.writeText(dataString);
-      setCopiedBackup(true);
-      setTimeout(() => setCopiedBackup(false), 3000);
-      showNotificationFeedback(
-        `Backup completo copiado com sucesso! ${isEncrypted ? 'Protegido com criptografia AES-256.' : ''} Checksum: ${checksum.substring(0, 8)}...`,
-        'success'
-      );
-    } catch (err: any) {
-      showNotificationFeedback('Erro ao gerar dados de backup: ' + err.message, 'error');
-    }
-  };
-
-  // 5. Download JSON backup package
+  // 1. Download complete JSON backup package
   const handleDownloadBackupJson = async () => {
     try {
-      const { dataString, isEncrypted } = await getCompleteBackupData(backupPassword);
+      const { dataString } = await getCompleteBackupData();
       const blob = new Blob([dataString], { type: 'application/json;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const now = new Date();
       const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}`;
+      const storeSlug = (settings.storeName || 'loja').toLowerCase().replace(/[^a-z0-9]/g, '_');
       a.href = url;
-      a.download = `backup_counter_${dateStr}${isEncrypted ? '_enc' : ''}.json`;
+      a.download = `backup_${storeSlug}_${dateStr}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showNotificationFeedback(
-        `Arquivo de backup completo baixado com sucesso! Guarde este arquivo em segurança no Google Drive ou seu computador.`,
+      showFeedback(
+        'Arquivo de backup completo baixado com sucesso! Guarde este arquivo em segurança.',
         'success'
       );
     } catch (err: any) {
-      showNotificationFeedback('Erro ao baixar backup: ' + err.message, 'error');
+      showFeedback('Erro ao baixar backup: ' + err.message, 'error');
     }
   };
 
-  // 6. Restore from raw text or JSON file
-  const handleRestoreFromText = async () => {
-    if (!restoreText.trim()) {
-      showNotificationFeedback('Por favor, cole o código do backup ou selecione o arquivo .json.', 'error');
+  // 2. Copy complete backup string
+  const handleCopyCompleteBackup = async () => {
+    try {
+      const { dataString } = await getCompleteBackupData();
+      await navigator.clipboard.writeText(dataString);
+      setCopiedBackup(true);
+      setTimeout(() => setCopiedBackup(false), 3000);
+      showFeedback('Backup completo copiado para a área de transferência!', 'success');
+    } catch (err: any) {
+      showFeedback('Erro ao copiar dados: ' + err.message, 'error');
+    }
+  };
+
+  // 3. Create snapshot
+  const handleCreateSnapshot = async () => {
+    setIsCreatingSnapshot(true);
+    try {
+      const snap = await createHourlySnapshot(snapshotLabel.trim() || undefined, 'manual');
+      setSnapshotLabel('');
+      showFeedback(
+        `Ponto de restauração das ${snap.timeFormatted} salvo com sucesso! (${snap.productsCount} produtos, ${snap.ordersCount} pedidos).`,
+        'success'
+      );
+    } catch (err: any) {
+      showFeedback('Erro ao criar ponto de restauração: ' + err.message, 'error');
+    } finally {
+      setIsCreatingSnapshot(false);
+    }
+  };
+
+  // 4. Analyze file or text input immediately
+  const handleInspectText = async (text: string, pwd?: string) => {
+    if (!text.trim()) {
+      setAnalyzedData(null);
       return;
     }
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeBackup(text, pwd || restorePassword);
+      setAnalyzedData(result);
+    } catch {
+      setAnalyzedData({
+        isValid: false,
+        productsCount: 0,
+        ordersCount: 0,
+        settingsCount: 0,
+        notificationsCount: 0,
+        hasProducts: false,
+        hasSettings: false,
+        hasOrders: false,
+        hasNotifications: false,
+        error: 'Não foi possível ler o arquivo. Certifique-se de que é um JSON válido.'
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
-    if (
-      !confirm(
-        'Deseja realmente restaurar este backup? Todas as configurações (incluindo bio do Instagram e WhatsApp), produtos e pedidos serão sincronizados com as informações do backup.'
-      )
-    ) {
+  // Handle file upload
+  const handleJsonFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setRestoreFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setRestoreText(content);
+        await handleInspectText(content);
+      }
+    };
+    reader.readAsText(file);
+    // Reset target value so the same file can be selected again if desired
+    e.target.value = '';
+  };
+
+  // 5. Apply restore directly
+  const handleApplyRestore = async () => {
+    if (!restoreText.trim()) {
+      showFeedback('Por favor, selecione um arquivo .json ou cole o conteúdo do backup.', 'error');
       return;
     }
 
     setIsRestoring(true);
     try {
-      const res = await restoreCompleteBackup(restoreText, restorePassword);
+      const res = await restoreCompleteBackup(restoreText, restorePassword.trim() || undefined);
       if (res.success) {
-        showNotificationFeedback(
-          `Restauração concluída! ${res.stats?.productsCount || 0} produtos, ${res.stats?.ordersCount || 0} pedidos, ${res.stats?.settingsCount || 0} configurações e ${res.stats?.notificationsCount || 0} comunicados foram importados.`,
+        setJustRestoredStats({
+          productsCount: res.stats?.productsCount || 0,
+          ordersCount: res.stats?.ordersCount || 0,
+          settingsCount: res.stats?.settingsCount || 0,
+          storeName: analyzedData?.storeName
+        });
+        showFeedback(
+          `✅ Restauração concluída! ${res.stats?.productsCount || 0} produtos e configurações gravados com persistência permanente no navegador.`,
           'success'
         );
         setRestoreText('');
-        setRestorePassword('');
+        setRestoreFileName('');
+        setAnalyzedData(null);
       } else {
-        showNotificationFeedback(res.message, 'error');
+        showFeedback(res.message, 'error');
       }
     } catch (err: any) {
-      showNotificationFeedback('Erro ao restaurar: ' + err.message, 'error');
+      showFeedback('Erro ao restaurar: ' + err.message, 'error');
     } finally {
       setIsRestoring(false);
     }
   };
 
-  // Handle uploading JSON file for restore
-  const handleJsonFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setRestoreText(content);
-        showNotificationFeedback(`Arquivo "${file.name}" carregado. Clique em "Restaurar" para aplicar.`, 'info');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // 7. Cloud API Sync
-  const handleSyncCloudApi = async () => {
-    if (!webhookUrl.trim()) {
-      showNotificationFeedback('Informe a URL do endpoint de API externa ou Webhook.', 'error');
-      return;
-    }
-
-    setIsSyncing(true);
+  // 6. Confirm restore snapshot
+  const handleConfirmSnapshotRestore = async () => {
+    if (!snapshotToRestore) return;
+    setIsRestoring(true);
     try {
-      const res = await syncBackupToCloudApi(webhookUrl, webhookToken, syncPassword);
+      const res = await restoreSnapshotById(snapshotToRestore.id);
       if (res.success) {
-        showNotificationFeedback(res.message, 'success');
+        showFeedback(
+          `Backup de "${snapshotToRestore.dateFormatted} às ${snapshotToRestore.timeFormatted}" restaurado e salvo com sucesso!`,
+          'success'
+        );
+        setSnapshotToRestore(null);
       } else {
-        showNotificationFeedback(res.message, 'error');
+        showFeedback(res.message, 'error');
       }
     } catch (err: any) {
-      showNotificationFeedback(err.message, 'error');
+      showFeedback('Erro ao restaurar snapshot: ' + err.message, 'error');
     } finally {
-      setIsSyncing(false);
+      setIsRestoring(false);
     }
   };
 
-  // 8. CSV Upload & Preview handler
-  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setCsvInput(content);
-        handleCsvPreview(content, csvImportType);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleCsvPreview = (text: string, type: 'products' | 'settings' | 'notifications') => {
+  // CSV parsing
+  const handleCsvInputChange = (text: string, type: 'products' | 'settings' | 'notifications') => {
+    setCsvInput(text);
     setImportErrors([]);
+
     if (!text.trim()) {
       setPreviewProducts([]);
       setPreviewSettings(null);
@@ -320,12 +290,12 @@ export const AdminCsv: React.FC = () => {
   const handleConfirmCsvImport = () => {
     if (csvImportType === 'products' && previewProducts.length > 0) {
       importProductsList(previewProducts, replaceMode);
-      showNotificationFeedback(`Sucesso! ${previewProducts.length} produtos foram importados.`, 'success');
+      showFeedback(`Sucesso! ${previewProducts.length} produtos foram importados.`, 'success');
       setCsvInput('');
       setPreviewProducts([]);
     } else if (csvImportType === 'settings' && previewSettings) {
       importSettingsFromCsv(previewSettings);
-      showNotificationFeedback(
+      showFeedback(
         `Sucesso! ${Object.keys(previewSettings).length} configurações foram atualizadas.`,
         'success'
       );
@@ -333,7 +303,7 @@ export const AdminCsv: React.FC = () => {
       setPreviewSettings(null);
     } else if (csvImportType === 'notifications' && previewNotifications.length > 0) {
       importNotificationsFromCsv(previewNotifications, replaceMode);
-      showNotificationFeedback(`Sucesso! ${previewNotifications.length} comunicados foram importados.`, 'success');
+      showFeedback(`Sucesso! ${previewNotifications.length} comunicados foram importados.`, 'success');
       setCsvInput('');
       setPreviewNotifications([]);
     }
@@ -341,7 +311,40 @@ export const AdminCsv: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Feedback Banner */}
+      {/* Header Banner - Clean, informative and high contrast */}
+      <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold uppercase tracking-wider mb-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Persistência Permanente Garantida</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight">
+              Backup, Restauração & Dados
+            </h2>
+            <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-2xl leading-relaxed">
+              Exporte todo o conteúdo da sua loja em um arquivo <strong>.JSON</strong> completo ou restaure produtos e configurações a qualquer momento. Suas alterações são gravadas com garantia de permanência mesmo após recarregar o navegador.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-neutral-50 p-3 rounded-2xl border border-neutral-200/80 text-xs shrink-0">
+            <div className="text-center px-3 border-r border-neutral-200">
+              <span className="block text-base font-extrabold text-neutral-900">{products.length}</span>
+              <span className="text-[10px] text-neutral-500 font-medium">Produtos</span>
+            </div>
+            <div className="text-center px-3 border-r border-neutral-200">
+              <span className="block text-base font-extrabold text-neutral-900">{orders.length}</span>
+              <span className="text-[10px] text-neutral-500 font-medium">Pedidos</span>
+            </div>
+            <div className="text-center px-3">
+              <span className="block text-base font-extrabold text-emerald-700 font-mono">100%</span>
+              <span className="text-[10px] text-neutral-500 font-medium">Salvo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Global Feedback Banner */}
       {feedback && (
         <div
           className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between gap-3 shadow-xs border ${
@@ -349,67 +352,92 @@ export const AdminCsv: React.FC = () => {
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : feedback.type === 'error'
               ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-blue-50 border-blue-200 text-blue-800'
+              : 'bg-neutral-900 border-neutral-900 text-white'
           }`}
         >
           <div className="flex items-center gap-2.5">
             {feedback.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
+            ) : feedback.type === 'error' ? (
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
             )}
             <span>{feedback.text}</span>
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-neutral-400 hover:text-neutral-700 text-xs font-bold"
+            className="text-neutral-400 hover:text-neutral-700 text-xs font-bold cursor-pointer"
           >
             ✕
           </button>
         </div>
       )}
 
-      {/* Top Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 bg-neutral-100 p-1.5 rounded-2xl">
-        <button
-          onClick={() => setActiveTab('hourly')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'hourly'
-              ? 'bg-neutral-900 text-white shadow-xs'
-              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
-          }`}
-        >
-          <Clock className="w-4 h-4 text-rose-400" />
-          <span>Snapshots por Horário (1-Clique)</span>
-          {snapshots.length > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] bg-rose-500 text-white font-extrabold">
-              {snapshots.length}
-            </span>
-          )}
-        </button>
+      {/* Post-Restore Verification Card */}
+      {justRestoredStats && (
+        <div className="p-5 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in zoom-in-95 duration-200">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-bold text-neutral-900 text-sm sm:text-base">
+                Backup Aplicado com Sucesso!
+              </h3>
+            </div>
+            <p className="text-xs text-neutral-600">
+              Foram restaurados e gravados permanentemente: <strong>{justRestoredStats.productsCount} produtos</strong>, <strong>{justRestoredStats.ordersCount} pedidos</strong> e <strong>{justRestoredStats.settingsCount} configurações</strong>.
+            </p>
+          </div>
 
-        <button
-          onClick={() => setActiveTab('drive')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'drive'
-              ? 'bg-neutral-900 text-white shadow-xs'
-              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
-          }`}
-        >
-          <HardDrive className="w-4 h-4 text-emerald-400" />
-          <span>Google Drive & Backup Diário</span>
-        </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentView('catalog')}
+              className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Ver Catálogo</span>
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Testar recarregar a página para comprovar a persistência"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-neutral-600" />
+              <span>Testar Recarregar (F5)</span>
+            </button>
+          </div>
+        </div>
+      )}
 
+      {/* Modern Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200/60">
         <button
-          onClick={() => setActiveTab('migration')}
+          onClick={() => setActiveTab('backup-restore')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'migration'
+            activeTab === 'backup-restore'
               ? 'bg-neutral-900 text-white shadow-xs'
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>Migração Completa (Copiar & Colar)</span>
+          <span>Backup & Restauração (.JSON)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'history'
+              ? 'bg-neutral-900 text-white shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-amber-500" />
+          <span>Pontos Salvos no Navegador</span>
+          {snapshots.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 rounded-md text-[10px] bg-neutral-800 text-white font-bold">
+              {snapshots.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -420,667 +448,545 @@ export const AdminCsv: React.FC = () => {
               : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
           }`}
         >
-          <FileSpreadsheet className="w-4 h-4" />
-          <span>Exportação & Importação CSV</span>
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <span>Planilhas Excel / CSV</span>
         </button>
       </div>
 
-      {/* TAB 1: ⚡ SNAPSHOTS POR HORÁRIO & DIÁRIO (1-CLIQUE) */}
-      {activeTab === 'hourly' && (
-        <div className="space-y-6">
-          {/* Header Banner */}
-          <div className="p-6 rounded-3xl bg-neutral-900 text-white shadow-xl border border-neutral-800 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ================= TAB 1: BACKUP & RESTAURAÇÃO (.JSON) ================= */}
+      {activeTab === 'backup-restore' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* Card 1: EXPORTAR BACKUP */}
+          <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-neutral-100">
+              <div className="w-10 h-10 rounded-2xl bg-neutral-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Download className="w-5 h-5 text-emerald-400" />
+              </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Backup Diário Automático: Ativo
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-rose-300 bg-rose-500/20 px-2.5 py-1 rounded-full border border-rose-500/30">
-                    Snapshots com 1-Clique
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-white mt-2">
-                  Pontos de Restauração por Horário & Backup Integrado
+                <h3 className="font-bold text-neutral-900 text-base">
+                  1. Exportar Cópia de Segurança
                 </h3>
-                <p className="text-xs text-neutral-300 mt-1 max-w-2xl leading-relaxed">
-                  Crie e restaure cópias completas do site com 1 clique a qualquer minuto. Inclui <strong>100% dos dados</strong>: configurações da loja (nome, WhatsApp, Instagram e Bio), produtos com estoques, pedidos de clientes e comunicados.
+                <p className="text-xs text-neutral-500">
+                  Gere um arquivo .json seguro com todos os dados da sua loja.
                 </p>
               </div>
+            </div>
 
-              {/* Instant 1-Click Action */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-3 text-xs">
+              <span className="font-bold text-neutral-800 block text-[11px] uppercase tracking-wider">
+                Resumo dos dados incluídos na cópia:
+              </span>
+              <ul className="space-y-2 text-neutral-600 text-xs">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>{products.length} Produtos</strong> com fotos, tamanhos, especificações e estoques</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>{orders.length} Pedidos</strong> registrados com histórico completo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Configurações da Loja</strong> (Nome: "{settings.storeName}", WhatsApp, Instagram, Frete, Endereço e Textos)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>{notifications.length} Comunicados e Avisos</strong></span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleDownloadBackupJson}
+                className="w-full py-3.5 px-4 bg-neutral-900 hover:bg-neutral-800 active:scale-98 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Baixar Backup Completo (.JSON)</span>
+              </button>
+
+              <div className="flex gap-2">
                 <button
-                  onClick={handleCreateSnapshot}
-                  disabled={isCreatingSnapshot}
-                  className="px-5 py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  type="button"
+                  onClick={handleCopyCompleteBackup}
+                  className="flex-1 py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  {isCreatingSnapshot ? (
+                  {copiedBackup ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Salvando Ponto...</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-700 font-bold">Copiado!</span>
                     </>
                   ) : (
                     <>
-                      <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-                      <span>Criar Ponto de Restauração Agora</span>
+                      <Copy className="w-3.5 h-3.5 text-neutral-500" />
+                      <span>Copiar Texto JSON</span>
                     </>
                   )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCreateSnapshot}
+                  disabled={isCreatingSnapshot}
+                  className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isCreatingSnapshot ? 'animate-spin' : ''}`} />
+                  <span>Salvar Ponto Local</span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Quick Create Custom Snapshot Card */}
-          <div className="bg-white p-5 rounded-3xl border border-neutral-200/90 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-            <div className="flex-1">
-              <label className="text-xs font-bold text-neutral-800 block mb-1">
-                Nome ou Motivo do Snapshot (Opcional):
+          {/* Card 2: RESTAURAR BACKUP - REFINED, CRYSTAL CLEAR & INSTANT FEEDBACK */}
+          <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-neutral-100">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Upload className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-neutral-900 text-base">
+                  2. Restaurar Backup (.JSON)
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Carregue um arquivo .json para recuperar seus produtos e dados.
+                </p>
+              </div>
+            </div>
+
+            {/* Dropzone */}
+            <div>
+              <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-neutral-300 hover:border-neutral-900 bg-neutral-50/70 hover:bg-neutral-50 rounded-2xl cursor-pointer transition-all group">
+                <FileJson className="w-10 h-10 text-neutral-400 group-hover:text-neutral-900 transition-colors mb-2" />
+                <span className="text-xs font-bold text-neutral-900">
+                  {restoreFileName ? restoreFileName : 'Clique para selecionar seu arquivo .JSON'}
+                </span>
+                <span className="text-[11px] text-neutral-500 mt-0.5">
+                  {restoreFileName ? 'Arquivo carregado. Confira o resumo abaixo para aplicar.' : 'Ou arraste e solte o arquivo aqui'}
+                </span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleJsonFileUpload}
+                  className="hidden"
+                />
               </label>
-              <input
-                type="text"
-                placeholder={`Ex: Antes de alterar preços de produtos, importação ou ajuste de estoque...`}
-                value={snapshotLabel}
-                onChange={(e) => setSnapshotLabel(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-neutral-50/50"
-              />
             </div>
 
-            <button
-              onClick={handleCreateSnapshot}
-              disabled={isCreatingSnapshot}
-              className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer self-end sm:self-auto shrink-0"
-            >
-              <Sparkles className="w-4 h-4 text-rose-300" />
-              <span>Salvar com este Rótulo</span>
-            </button>
-          </div>
-
-          {/* Snapshots History List */}
-          <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <History className="w-5 h-5 text-neutral-800" />
-                <div>
-                  <h4 className="font-sans font-bold text-neutral-900 text-sm">
-                    Histórico de Pontos de Restauração Gravados ({snapshots.length})
-                  </h4>
-                  <p className="text-xs text-neutral-500">
-                    Clique em &quot;Restaurar&quot; para voltar o site instantaneamente para aquele momento.
-                  </p>
-                </div>
-              </div>
+            {/* Option to paste JSON directly */}
+            <div>
+              <details className="text-xs group">
+                <summary className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-900 cursor-pointer list-none flex items-center gap-1 select-none">
+                  <span>▸ Ou cole o código JSON diretamente</span>
+                </summary>
+                <textarea
+                  rows={4}
+                  value={restoreText}
+                  onChange={(e) => {
+                    setRestoreText(e.target.value);
+                    setRestoreFileName('');
+                    handleInspectText(e.target.value);
+                  }}
+                  placeholder='{"products": [...], "settings": {...}}'
+                  className="w-full mt-2 p-3 rounded-xl border border-neutral-200 bg-neutral-50/50 font-mono text-[11px] text-neutral-800"
+                />
+              </details>
             </div>
 
-            {snapshots.length === 0 ? (
-              <div className="p-10 text-center text-neutral-400 space-y-3">
-                <Clock className="w-10 h-10 text-neutral-300 mx-auto" />
-                <p className="text-xs font-semibold text-neutral-600">
-                  Nenhum snapshot gravado ainda neste navegador.
-                </p>
-                <p className="text-[11px] text-neutral-400 max-w-sm mx-auto">
-                  Clique no botão acima &quot;Criar Ponto de Restauração Agora&quot; para gravar o estado atual da loja com 1 clique!
-                </p>
+            {/* Live Analyzed Content Box */}
+            {isAnalyzing && (
+              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-600 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-neutral-600" />
+                <span>Analisando conteúdo do arquivo...</span>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {snapshots.map((snap) => (
-                  <div
-                    key={snap.id}
-                    className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 hover:border-neutral-300 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-neutral-900 text-xs">{snap.label}</span>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                            snap.type === 'daily'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : 'bg-rose-100 text-rose-800 border border-rose-200'
-                          }`}
-                        >
-                          {snap.type === 'daily' ? 'Diário Automático' : 'Horário'}
-                        </span>
-                        <span className="text-[11px] text-neutral-500 font-mono">
-                          📅 {snap.dateFormatted} às {snap.timeFormatted}
-                        </span>
+            )}
+
+            {analyzedData && !isAnalyzing && (
+              <div
+                className={`p-4 rounded-2xl border text-xs space-y-3 ${
+                  analyzedData.isValid
+                    ? 'bg-emerald-50/80 border-emerald-200 text-neutral-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                {analyzedData.isValid ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Arquivo de Backup Válido e Verificado</span>
                       </div>
+                      {analyzedData.version && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold">
+                          v{analyzedData.version}
+                        </span>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-3 text-[11px] text-neutral-600">
-                        <span className="flex items-center gap-1">
-                          <ShoppingBag className="w-3 h-3 text-amber-600" />
-                          {snap.productsCount} produtos
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
+                      <div className="p-2 rounded-xl bg-white/80 border border-emerald-100">
+                        <span className="block text-base font-extrabold text-neutral-900">
+                          {analyzedData.productsCount}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <ClipboardList className="w-3 h-3 text-emerald-600" />
-                          {snap.ordersCount} pedidos
+                        <span className="text-[10px] text-neutral-500 font-medium">Produtos</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white/80 border border-emerald-100">
+                        <span className="block text-base font-extrabold text-neutral-900">
+                          {analyzedData.ordersCount}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Sliders className="w-3 h-3 text-rose-600" />
-                          {snap.settingsCount} configurações
+                        <span className="text-[10px] text-neutral-500 font-medium">Pedidos</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white/80 border border-emerald-100">
+                        <span className="block text-base font-extrabold text-neutral-900">
+                          {analyzedData.settingsCount}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Bell className="w-3 h-3 text-blue-600" />
-                          {snap.notificationsCount} avisos
+                        <span className="text-[10px] text-neutral-500 font-medium">Configs</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white/80 border border-emerald-100">
+                        <span className="block text-base font-extrabold text-neutral-900">
+                          {analyzedData.notificationsCount}
                         </span>
+                        <span className="text-[10px] text-neutral-500 font-medium">Avisos</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                    {analyzedData.storeName && (
+                      <div className="text-[11px] text-neutral-600">
+                        Loja identificada: <strong>{analyzedData.storeName}</strong>
+                      </div>
+                    )}
+
+                    {/* Password input if encrypted */}
+                    {analyzedData.error?.includes('senha') && (
+                      <div className="space-y-1.5 pt-2">
+                        <label className="text-[11px] font-bold text-neutral-700 block">
+                          Senha de Descriptografia:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={restorePassword}
+                            onChange={(e) => setRestorePassword(e.target.value)}
+                            placeholder="Digite a senha deste backup..."
+                            className="flex-1 px-3 py-1.5 rounded-xl border border-neutral-300 bg-white text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleInspectText(restoreText, restorePassword)}
+                            className="px-3 py-1.5 bg-neutral-900 text-white rounded-xl text-xs font-semibold"
+                          >
+                            Verificar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex gap-2">
                       <button
-                        onClick={() => handleRestoreSnapshot(snap)}
+                        type="button"
+                        onClick={handleApplyRestore}
                         disabled={isRestoring}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                        title="Restaurar o catálogo e as configurações exatamente como estavam neste momento"
+                        className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        <span>Restaurar Este Ponto</span>
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                        <span>{isRestoring ? 'Gravando e Restaurando...' : 'Restaurar e Aplicar Agora'}</span>
                       </button>
 
                       <button
-                        onClick={() => exportSnapshotAsJson(snap.data)}
-                        className="px-3 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Baixar arquivo JSON deste snapshot"
+                        type="button"
+                        onClick={() => {
+                          setRestoreText('');
+                          setRestoreFileName('');
+                          setAnalyzedData(null);
+                        }}
+                        className="py-3 px-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Baixar</span>
-                      </button>
-
-                      <button
-                        onClick={() => deleteSnapshotById(snap.id)}
-                        className="p-2 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                        title="Excluir este snapshot"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        Cancelar
                       </button>
                     </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Não foi possível processar este arquivo</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700">{analyzedData.error}</p>
                   </div>
-                ))}
+                )}
+              </div>
+            )}
+
+            {!analyzedData && (
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200/80 text-[11px] text-neutral-600 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Garantia de Persistência Permanente:</strong> Ao aplicar o backup, os dados são sincronizados em múltiplas chaves permanentes no navegador. Mesmo reiniciando o computador ou recarregando a página, seus produtos e configurações ficam intactos.
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* TAB 2: 📁 GOOGLE DRIVE & BACKUP DIÁRIO */}
-      {activeTab === 'drive' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <HardDrive className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-sans font-bold text-neutral-900 text-base">
-                    Google Drive & Backup Periódico Diário
-                  </h4>
-                  <p className="text-xs text-neutral-500">
-                    Sincronize arquivos de backup compatíveis com o Google Drive para nunca perder informações.
-                  </p>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold border border-emerald-200 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Google Drive Integrado
-                </span>
-              </div>
+      {/* ================= TAB 2: PONTOS SALVOS NO NAVEGADOR ================= */}
+      {activeTab === 'history' && (
+        <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-100">
+            <div>
+              <h3 className="font-bold text-neutral-900 text-base">
+                Pontos de Restauração Salvos ({snapshots.length})
+              </h3>
+              <p className="text-xs text-neutral-500">
+                Histórico local de versões salvas no seu navegador para voltar no tempo com 1 clique.
+              </p>
             </div>
 
-            {/* Periodic Schedule Recommendation */}
-            <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-neutral-800 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-neutral-600" />
-                  Rotina de Backup Diário:
-                </span>
-                <span className="text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                  Automático & Diário Ativo
-                </span>
-              </div>
-
-              <div className="text-xs text-neutral-600 space-y-1">
-                {settings.lastBackupDate ? (
-                  <p className="flex items-center gap-1 text-emerald-700 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Último backup exportado em: {new Date(settings.lastBackupDate).toLocaleString('pt-BR')} (
-                    {settings.lastBackupType || 'JSON'})
-                  </p>
-                ) : (
-                  <p className="text-emerald-700 font-medium">
-                    ✅ O backup diário é salvo automaticamente pelo sistema a cada dia. Você também pode exportar cópias manuais para o Google Drive a qualquer momento.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* How to use Google Drive Step by Step */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-1.5">
-                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
-                  1
-                </div>
-                <h5 className="font-bold text-emerald-950">Exportar com 1-Clique</h5>
-                <p className="text-emerald-800/90 leading-relaxed text-[11px]">
-                  Clique em &quot;Baixar Backup para o Google Drive&quot; para gerar o pacote consolidado nomeado por data e hora.
-                </p>
-              </div>
-
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-1.5">
-                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
-                  2
-                </div>
-                <h5 className="font-bold text-emerald-950">Acesse o Google Drive</h5>
-                <p className="text-emerald-800/90 leading-relaxed text-[11px]">
-                  Abra sua pasta de backups no Google Drive com o atalho oficial para armazenar seu arquivo na nuvem.
-                </p>
-              </div>
-
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-1.5">
-                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center">
-                  3
-                </div>
-                <h5 className="font-bold text-emerald-950">Restauração Rápida</h5>
-                <p className="text-emerald-800/90 leading-relaxed text-[11px]">
-                  Para restaurar em qualquer servidor ou computador, basta baixar o arquivo do Drive e importar com 1 clique.
-                </p>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nome do ponto (opcional)..."
+                value={snapshotLabel}
+                onChange={(e) => setSnapshotLabel(e.target.value)}
+                className="px-3 py-1.5 text-xs rounded-xl border border-neutral-300 bg-neutral-50/50"
+              />
               <button
-                onClick={handleGoogleDriveExport}
-                className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                type="button"
+                onClick={handleCreateSnapshot}
+                disabled={isCreatingSnapshot}
+                className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
               >
-                <FolderDown className="w-4 h-4 text-emerald-200" />
-                <span>Baixar Backup Completo para o Google Drive</span>
-              </button>
-
-              <button
-                onClick={() => window.open('https://drive.google.com/drive/my-drive', '_blank')}
-                className="w-full sm:w-auto px-5 py-3 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Abrir Google Drive (Minha Pasta)</span>
-              </button>
-
-              <button
-                onClick={() => window.open('https://sheets.new', '_blank')}
-                className="w-full sm:w-auto px-4 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>Abrir Nova Planilha no Google Sheets</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Criar Ponto Agora</span>
               </button>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* TAB 3: ⚡ MIGRAÇÃO COMPLETA (COPIAR & COLAR ENTRE HOSPEDAGENS) */}
-      {activeTab === 'migration' && (
-        <div className="space-y-6">
-          {/* Header Banner */}
-          <div className="p-6 rounded-3xl bg-neutral-900 text-white shadow-xl border border-neutral-800 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-rose-300 bg-rose-500/20 px-2.5 py-1 rounded-full border border-rose-500/30">
-                  Migração Instantânea 1-Clique
-                </span>
-                <h3 className="text-xl font-bold text-white mt-1.5">
-                  Backup Completo de Configurações, Catálogo & Histórico
-                </h3>
-                <p className="text-xs text-neutral-300 mt-1 max-w-2xl leading-relaxed">
-                  Permite exportar todas as variáveis da loja (aba <strong>Configurações</strong>, bio do Instagram, comunicados da aba <strong>Mensagens</strong>, produtos com estoque e pedidos) para copiar e colar com facilidade em qualquer outra hospedagem ou servidor.
-                </p>
-              </div>
-
-              {/* Stats badges */}
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="px-3 py-1.5 bg-neutral-800 rounded-xl border border-neutral-700 flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-rose-400" />
-                  <strong>Configurações:</strong> 100%
-                </span>
-                <span className="px-3 py-1.5 bg-neutral-800 rounded-xl border border-neutral-700 flex items-center gap-1.5">
-                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
-                  <strong>{products.length}</strong> produtos
-                </span>
-                <span className="px-3 py-1.5 bg-neutral-800 rounded-xl border border-neutral-700 flex items-center gap-1.5">
-                  <ClipboardList className="w-3.5 h-3.5 text-emerald-400" />
-                  <strong>{orders.length}</strong> pedidos
-                </span>
-                <span className="px-3 py-1.5 bg-neutral-800 rounded-xl border border-neutral-700 flex items-center gap-1.5">
-                  <Bell className="w-3.5 h-3.5 text-blue-400" />
-                  <strong>{notifications.length}</strong> avisos
-                </span>
-              </div>
+          {snapshots.length === 0 ? (
+            <div className="text-center py-12 text-neutral-400 text-xs">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="font-semibold text-neutral-700">Nenhum ponto de restauração salvo ainda.</p>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                Clique no botão acima para criar uma cópia de segurança instantânea.
+              </p>
             </div>
-          </div>
+          ) : (
+            <div className="divide-y divide-neutral-100">
+              {snapshots.map((snap) => (
+                <div
+                  key={snap.id}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-neutral-50/80 px-2 rounded-xl transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-neutral-900 text-xs sm:text-sm">
+                        {snap.label || `Backup de ${snap.dateFormatted}`}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 font-semibold border border-neutral-200">
+                        {snap.dateFormatted} às {snap.timeFormatted}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-neutral-500">
+                      <span><strong>{snap.productsCount}</strong> produtos</span>
+                      <span>•</span>
+                      <span><strong>{snap.ordersCount}</strong> pedidos</span>
+                      <span>•</span>
+                      <span><strong>{snap.settingsCount}</strong> configurações</span>
+                    </div>
+                  </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Box 1: Exportar / Copiar Tudo */}
-            <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-5 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-neutral-100 pb-3">
-                  <div className="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center">
-                    <Copy className="w-4 h-4 text-rose-300" />
-                  </div>
-                  <div>
-                    <h4 className="font-sans font-bold text-neutral-900 text-sm">
-                      1. Exportar / Copiar Dados Completos
-                    </h4>
-                    <p className="text-xs text-neutral-500">
-                      Gera o pacote com todas as variáveis para transferir de servidor.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Password encryption protection option */}
-                <div className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      Proteger com Criptografia AES-256 (Opcional):
-                    </span>
-                    <span className="text-[10px] text-neutral-400">Web Crypto API</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Defina uma senha se desejar criptografar os dados..."
-                      value={backupPassword}
-                      onChange={(e) => setBackupPassword(e.target.value)}
-                      className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-neutral-300 bg-white focus:ring-2 focus:ring-rose-500/20"
-                    />
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                      title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                      onClick={() => setSnapshotToRestore(snap)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                      title="Restaurar este ponto imediatamente"
                     >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Restaurar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => exportSnapshotAsJson(snap.id)}
+                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-semibold text-xs rounded-xl flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Baixar arquivo .json desta versão"
+                    >
+                      <Download className="w-3.5 h-3.5 text-neutral-600" />
+                      <span>Baixar .JSON</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteSnapshotById(snap.id)}
+                      className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                      title="Excluir este ponto do histórico"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-[11px] text-neutral-500">
-                    Se preenchido, os dados e credenciais ficam blindados e só poderão ser lidos ou restaurados com esta senha.
-                  </p>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-                <div className="space-y-1.5 text-xs text-neutral-600">
-                  <p className="font-semibold text-neutral-800">O pacote de backup contém:</p>
-                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-neutral-600">
-                    <li>Todas as configurações da loja (nome Counter, WhatsApp, Instagram, Bio oficial, Pix, etc.)</li>
-                    <li>Catálogo completo com grade de tamanhos, preços de custo e fotos</li>
-                    <li>Histórico de pedidos com clientes, lucro líquido e mensagens do WhatsApp</li>
-                    <li>Histórico de comunicados e notificações ativas</li>
-                    <li>Código de integridade SHA-256 para prevenir corrupção de dados</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-2">
-                <button
-                  onClick={handleCopyCompleteBackup}
-                  className="w-full py-3.5 px-4 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-98 cursor-pointer"
-                >
-                  {copiedBackup ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span className="text-emerald-300">Backup Copiado para a Área de Transferência!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 text-rose-300" />
-                      <span>Copiar Backup Completo (Clipboard)</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleDownloadBackupJson}
-                  className="w-full py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-neutral-600" />
-                  <span>Baixar Arquivo de Backup (.json)</span>
-                </button>
-              </div>
+      {/* In-app Confirmation Modal for Snapshot Restore (replaces window.confirm) */}
+      {snapshotToRestore && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-neutral-200 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <RefreshCw className="w-6 h-6" />
             </div>
 
-            {/* Box 2: Restaurar / Colar Dados em Nova Hospedagem */}
-            <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-5 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-neutral-100 pb-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                    <Upload className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="font-sans font-bold text-neutral-900 text-sm">
-                      2. Restaurar / Colar em Outra Hospedagem
-                    </h4>
-                    <p className="text-xs text-neutral-500">
-                      Cole o backup ou envie o arquivo .json para sincronizar este site.
-                    </p>
-                  </div>
-                </div>
+            <div>
+              <h3 className="font-bold text-neutral-900 text-lg">
+                Restaurar Ponto de Segurança?
+              </h3>
+              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
+                Você está restaurando o ponto <strong>"{snapshotToRestore.label}"</strong> criado em <strong>{snapshotToRestore.dateFormatted} às {snapshotToRestore.timeFormatted}</strong>.
+              </p>
+            </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-neutral-800 block">
-                      Cole o texto do Backup ou envie o arquivo:
-                    </label>
-                    <label className="text-[11px] text-rose-600 hover:underline font-semibold cursor-pointer">
-                      Enviar arquivo .json
-                      <input
-                        type="file"
-                        accept=".json,application/json"
-                        onChange={handleJsonFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                  <textarea
-                    rows={4}
-                    placeholder="Cole aqui o texto copiado de outra hospedagem (JSON)..."
-                    value={restoreText}
-                    onChange={(e) => setRestoreText(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-mono rounded-2xl border border-neutral-300 focus:ring-2 focus:ring-rose-500/20 bg-neutral-50/50"
-                  />
-                </div>
+            <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-1">
+              <div>• <strong>{snapshotToRestore.productsCount} produtos</strong> serão restaurados</div>
+              <div>• <strong>{snapshotToRestore.ordersCount} pedidos</strong> salvos</div>
+              <div>• Configurações da loja sincronizadas</div>
+            </div>
 
-                <div>
-                  <label className="text-xs font-bold text-neutral-700 block mb-1">
-                    Senha de Descriptografia (apenas se foi protegido):
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Informe a senha caso o backup esteja criptografado..."
-                    value={restorePassword}
-                    onChange={(e) => setRestorePassword(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 bg-neutral-50/50"
-                  />
-                </div>
-              </div>
-
+            <div className="flex gap-2 pt-2">
               <button
-                onClick={handleRestoreFromText}
-                disabled={isRestoring || !restoreText.trim()}
-                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-98 cursor-pointer"
+                type="button"
+                onClick={handleConfirmSnapshotRestore}
+                disabled={isRestoring}
+                className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                {isRestoring ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Restaurando todos os dados...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Restaurar Todos os Dados na Hospedagem</span>
-                  </>
-                )}
+                {isRestoring ? 'Restaurando...' : 'Confirmar Restauração'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSnapshotToRestore(null)}
+                className="py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 4: 📊 EXPORTAÇÃO & IMPORTAÇÃO CSV */}
+      {/* ================= TAB 3: PLANILHAS EXCEL / CSV ================= */}
       {activeTab === 'csv' && (
-        <div className="space-y-6">
-          {/* CSV Exports Grid */}
-          <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2.5 border-b border-neutral-100 pb-3">
-              <div className="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center">
-                <Download className="w-4 h-4 text-rose-300" />
-              </div>
+        <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs space-y-6">
+          <div className="pb-3 border-b border-neutral-100">
+            <h3 className="font-bold text-neutral-900 text-base">
+              Exportação & Importação em Planilha (CSV)
+            </h3>
+            <p className="text-xs text-neutral-500">
+              Manipule produtos, pedidos ou configurações diretamente no Excel ou Google Planilhas.
+            </p>
+          </div>
+
+          {/* 3 Quick Export Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 flex flex-col justify-between">
               <div>
-                <h4 className="font-sans font-bold text-neutral-900 text-sm">
-                  Exportação de Arquivos CSV Separados
-                </h4>
-                <p className="text-xs text-neutral-500">
-                  Planilhas formatadas em UTF-8 compatíveis com Excel, Numbers e Google Sheets.
+                <div className="flex items-center gap-2 mb-1.5">
+                  <ShoppingBag className="w-4 h-4 text-neutral-800" />
+                  <span className="font-bold text-neutral-900 text-xs">Produtos ({products.length})</span>
+                </div>
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Exporta preços, estoques, descrições e fotos para planilha.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => exportProductsToCsv(products)}
+                className="mt-3 w-full py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Baixar CSV Produtos</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* 1. Configurações */}
-              <div className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
-                    <Sliders className="w-3.5 h-3.5" />
-                  </div>
-                  <h5 className="font-bold text-neutral-900 text-xs">Configurações da Loja</h5>
-                  <p className="text-[11px] text-neutral-500">
-                    Todas as variáveis da aba Configurações (WhatsApp, Instagram, Pix, Frete, PIN, Bio).
-                  </p>
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Layers className="w-4 h-4 text-neutral-800" />
+                  <span className="font-bold text-neutral-900 text-xs">Pedidos ({orders.length})</span>
                 </div>
-                <button
-                  onClick={() => exportSettingsToCsv(settings)}
-                  className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Baixar CSV</span>
-                </button>
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Exporta histórico de vendas com totais e status de entrega.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => exportOrdersToCsv(orders)}
+                className="mt-3 w-full py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Baixar CSV Pedidos</span>
+              </button>
+            </div>
 
-              {/* 2. Produtos */}
-              <div className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                  </div>
-                  <h5 className="font-bold text-neutral-900 text-xs">Catálogo ({products.length} itens)</h5>
-                  <p className="text-[11px] text-neutral-500">
-                    Preços de venda e fabricação, grade de estoque por tamanho, cores e fotos.
-                  </p>
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Sliders className="w-4 h-4 text-neutral-800" />
+                  <span className="font-bold text-neutral-900 text-xs">Configurações da Loja</span>
                 </div>
-                <button
-                  onClick={() => exportProductsToCsv(products)}
-                  className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Baixar CSV</span>
-                </button>
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Exporta todos os parâmetros da loja em chave e valor.
+                </p>
               </div>
-
-              {/* 3. Pedidos */}
-              <div className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                    <ClipboardList className="w-3.5 h-3.5" />
-                  </div>
-                  <h5 className="font-bold text-neutral-900 text-xs">Pedidos ({orders.length} vendas)</h5>
-                  <p className="text-[11px] text-neutral-500">
-                    Histórico de vendas com clientes, margem de lucro líquido e itens do pedido.
-                  </p>
-                </div>
-                <button
-                  onClick={() => exportOrdersToCsv(orders)}
-                  className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Baixar CSV</span>
-                </button>
-              </div>
-
-              {/* 4. Notificações */}
-              <div className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 flex flex-col justify-between space-y-3">
-                <div className="space-y-1">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
-                    <Bell className="w-3.5 h-3.5" />
-                  </div>
-                  <h5 className="font-bold text-neutral-900 text-xs">Comunicados ({notifications.length})</h5>
-                  <p className="text-[11px] text-neutral-500">
-                    Histórico de notificações e mensagens ativas e arquivadas.
-                  </p>
-                </div>
-                <button
-                  onClick={() => exportNotificationsToCsv(notifications)}
-                  className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Baixar CSV</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => exportSettingsToCsv(settings)}
+                className="mt-3 w-full py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Baixar CSV Configs</span>
+              </button>
             </div>
           </div>
 
-          {/* CSV Import Section */}
-          <div className="bg-white p-6 rounded-3xl border border-neutral-200/90 shadow-2xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 border-b border-neutral-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                  <Upload className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-sans font-bold text-neutral-900 text-sm">
-                    Importação de Planilhas CSV
-                  </h4>
-                  <p className="text-xs text-neutral-500">
-                    Selecione o tipo de dado que deseja importar via CSV.
-                  </p>
-                </div>
-              </div>
-
-              {/* Import Type Selector */}
-              <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-xl text-xs font-bold">
+          {/* Import CSV Section */}
+          <div className="pt-4 border-t border-neutral-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
+                Importar Planilha CSV
+              </span>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    setCsvImportType('products');
-                    handleCsvPreview(csvInput, 'products');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    csvImportType === 'products' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-500'
+                  type="button"
+                  onClick={() => setCsvImportType('products')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    csvImportType === 'products'
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-neutral-100 text-neutral-700'
                   }`}
                 >
                   Produtos
                 </button>
                 <button
-                  onClick={() => {
-                    setCsvImportType('settings');
-                    handleCsvPreview(csvInput, 'settings');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    csvImportType === 'settings' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-500'
+                  type="button"
+                  onClick={() => setCsvImportType('settings')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    csvImportType === 'settings'
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-neutral-100 text-neutral-700'
                   }`}
                 >
                   Configurações
                 </button>
                 <button
-                  onClick={() => {
-                    setCsvImportType('notifications');
-                    handleCsvPreview(csvInput, 'notifications');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    csvImportType === 'notifications' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-500'
+                  type="button"
+                  onClick={() => setCsvImportType('notifications')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    csvImportType === 'notifications'
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-neutral-100 text-neutral-700'
                   }`}
                 >
                   Comunicados
@@ -1088,124 +994,62 @@ export const AdminCsv: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-neutral-700 block mb-1">
-                  Arquivo .CSV do seu Computador / Google Drive:
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleCsvFileUpload}
-                  className="w-full text-xs text-neutral-600 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-100 file:text-neutral-800 hover:file:bg-neutral-200 border border-neutral-300 rounded-2xl p-2 bg-neutral-50/50"
-                />
-              </div>
-
-              {csvImportType === 'products' && (
-                <div className="flex items-center justify-start sm:justify-end gap-3 pt-4 sm:pt-0">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-neutral-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={replaceMode}
-                      onChange={(e) => setReplaceMode(e.target.checked)}
-                      className="rounded-sm text-rose-600 focus:ring-rose-500"
-                    />
-                    <span>Substituir todo o catálogo existente</span>
-                  </label>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-neutral-700 block mb-1">
-                Ou cole o texto da sua planilha CSV aqui:
-              </label>
-              <textarea
-                rows={4}
-                placeholder={
-                  csvImportType === 'products'
-                    ? `Nome;Categoria;Preço Venda;Preço Fabricação;Tamanhos;Cores\nFone Wireless ANC;Eletrônicos & Tech;499.00;190.00;Único:15;Preto Fosco|Cinza Grafite`
-                    : csvImportType === 'settings'
-                    ? `Campo;Chave;Valor\nNome da Loja;storeName;Replace Store\nWhatsApp;whatsappNumber;5511998765432`
-                    : `ID;Data;Tipo;Título;Mensagem\nnotif-1;2026-10-05;promo;Novos Produtos;Confira novidades no catálogo`
-                }
-                value={csvInput}
-                onChange={(e) => {
-                  setCsvInput(e.target.value);
-                  handleCsvPreview(e.target.value, csvImportType);
-                }}
-                className="w-full px-3 py-2 text-xs font-mono rounded-2xl border border-neutral-300 focus:ring-2 focus:ring-rose-500/20 bg-neutral-50/50"
-              />
-            </div>
+            <textarea
+              rows={5}
+              value={csvInput}
+              onChange={(e) => handleCsvInputChange(e.target.value, csvImportType)}
+              placeholder="Cole os dados CSV aqui (com cabeçalhos na primeira linha)..."
+              className="w-full p-3 rounded-2xl border border-neutral-200 bg-neutral-50/50 font-mono text-xs text-neutral-800"
+            />
 
             {importErrors.length > 0 && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 space-y-1">
-                <span className="font-bold flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Avisos na validação do CSV:
-                </span>
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-1">
                 {importErrors.map((err, i) => (
-                  <div key={i}>{err}</div>
+                  <div key={i} className="flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>{err}</span>
+                  </div>
                 ))}
               </div>
             )}
 
-            {/* Preview before committing */}
-            {(previewProducts.length > 0 || previewSettings || previewNotifications.length > 0) && (
-              <div className="pt-2 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-bold text-neutral-900 text-xs">
-                    Pré-visualização da Importação
-                  </h5>
-                  <button
-                    onClick={handleConfirmCsvImport}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                  >
-                    Confirmar e Importar no Sistema
-                  </button>
-                </div>
-
-                {previewProducts.length > 0 && (
-                  <div className="border border-neutral-200 rounded-2xl overflow-hidden max-h-52 overflow-y-auto text-xs">
-                    <table className="w-full text-left">
-                      <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-200">
-                        <tr>
-                          <th className="py-2 px-3">Nome</th>
-                          <th className="py-2 px-3">Categoria</th>
-                          <th className="py-2 px-3">Preço Venda</th>
-                          <th className="py-2 px-3">Preço Custo</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {previewProducts.slice(0, 10).map((p, idx) => (
-                          <tr key={idx}>
-                            <td className="py-2 px-3 font-semibold text-neutral-900">{p.name}</td>
-                            <td className="py-2 px-3 text-neutral-600">{p.category}</td>
-                            <td className="py-2 px-3 font-bold text-neutral-900">R$ {p.salePrice.toFixed(2)}</td>
-                            <td className="py-2 px-3 text-neutral-500">R$ {p.costPrice.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {previewSettings && (
-                  <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 text-xs space-y-1">
-                    <span className="font-bold text-neutral-800 block">
-                      {Object.keys(previewSettings).length} parâmetros de configuração prontos para atualização:
-                    </span>
-                    <div className="grid grid-cols-2 gap-1 text-[11px] text-neutral-600 max-h-40 overflow-y-auto">
-                      {Object.entries(previewSettings).map(([k, v]) => (
-                        <div key={k}>
-                          <strong>{k}:</strong> {String(v)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {previewProducts.length > 0 && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
+                <span>{previewProducts.length} produtos identificados e prontos para importar.</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={replaceMode}
+                    onChange={(e) => setReplaceMode(e.target.checked)}
+                    className="rounded-sm text-emerald-600"
+                  />
+                  <span>Substituir catálogo atual</span>
+                </label>
               </div>
             )}
+
+            {previewSettings && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
+                <span>{Object.keys(previewSettings).length} parâmetros de configuração prontos para aplicar.</span>
+              </div>
+            )}
+
+            {previewNotifications.length > 0 && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
+                <span>{previewNotifications.length} comunicados prontos para importar.</span>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleConfirmCsvImport}
+                disabled={!csvInput.trim() || importErrors.length > 0}
+                className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                Confirmar Importação de CSV
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -36,6 +36,7 @@ export interface Product {
   isPromo?: boolean;
   promoPrice?: number;
   fabric?: string; // Especificações / Material
+  sku?: string;
   createdAt: string;
 }
 
@@ -219,4 +220,26 @@ export interface StoredBackupSnapshot {
   settingsCount: number;
   notificationsCount: number;
   data: CompleteStoreBackup;
+}
+
+export interface BackupAnalysisResult {
+  isValid: boolean;
+  storeName?: string;
+  productsCount: number;
+  ordersCount: number;
+  settingsCount: number;
+  notificationsCount: number;
+  hasProducts: boolean;
+  hasSettings: boolean;
+  hasOrders: boolean;
+  hasNotifications: boolean;
+  products?: Product[];
+  settings?: Partial<StoreSettings>;
+  orders?: Order[];
+  notifications?: SiteNotification[];
+  cart?: CartItem[];
+  label?: string;
+  version?: string;
+  exportedAt?: string;
+  error?: string;
 }
