@@ -184,6 +184,94 @@ export const saveToAllKeys = (keys: string[], rawValue: string) => {
   }
 };
 
+// Comprehensive detector for sample/demo products that should never appear in a real store
+export const isDemoProduct = (p: any): boolean => {
+  if (!p) return true;
+  const id = String(p.id || '').trim().toLowerCase();
+  const name = String(p.name || '').trim().toLowerCase();
+  const desc = String(p.description || '').trim().toLowerCase();
+  const img = String(p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || '').toLowerCase();
+
+  // Known sample product IDs
+  const demoIds = new Set([
+    'prod-tech-01',
+    'prod-bag-02',
+    'prod-pack-03',
+    'prod-lamp-04',
+    'prod-watch-01',
+    'prod-watch-02',
+    'prod-watch-03',
+    'prod-watch',
+    'watch-01',
+    'watch-02',
+    'watch-03',
+    'relogio-01',
+    'relogio-02',
+    'rel-01',
+    'rel-02',
+    'prod-01',
+    'prod-02',
+    'prod-03',
+    'prod-04',
+    'prod-05',
+    'prod-06',
+    'prod-07',
+    'prod-08',
+    'prod-001',
+    'prod-002',
+    'prod-003',
+    'prod-004'
+  ]);
+
+  if (demoIds.has(id)) return true;
+  if (
+    id.startsWith('demo-') ||
+    id.startsWith('mock-') ||
+    id.startsWith('sample-') ||
+    id.startsWith('prod-tech') ||
+    id.startsWith('prod-watch') ||
+    id.startsWith('prod-bag') ||
+    id.startsWith('prod-lamp') ||
+    id.startsWith('prod-pack') ||
+    id.startsWith('rel-') ||
+    id.startsWith('watch-')
+  ) {
+    return true;
+  }
+
+  // Check demo names and keywords (specifically Relógio Cronógrafo Minimalista Matte)
+  if (
+    name.includes('cronógrafo') ||
+    name.includes('cronografo') ||
+    name.includes('minimalista matte') ||
+    name.includes('relógio') ||
+    name.includes('relogio') ||
+    name.includes('smartwatch') ||
+    name.includes('noise cancelling') ||
+    name.includes('rolltop urbana') ||
+    name.includes('luminária de mesa') ||
+    name.includes('luminaria de mesa') ||
+    name.includes('camisetas algodão peruano') ||
+    name.includes('camisetas algodao peruano') ||
+    name.includes('produto demo') ||
+    name.includes('produto exemplo')
+  ) {
+    return true;
+  }
+
+  // Check demo image assets
+  if (
+    img.includes('generic_product_smartwatch') ||
+    img.includes('generic_product_headphones') ||
+    img.includes('generic_product_backpack') ||
+    img.includes('generic_product_desklamp')
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // 1. Settings state (preserves saved settings permanently across reloads and backup restores)
   const [settings, setSettings] = useState<StoreSettings>(() => {
@@ -201,19 +289,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  // 2. Products state (preserves restored products completely without deleting on reload)
+  // 2. Products state (strictly purges demo products and preserves real merchant products)
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = getStoredValue(PERSISTENCE_KEYS.PRODUCTS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed;
+          const filtered = parsed.filter((p: Product) => p && p.id && !isDemoProduct(p));
+          if (filtered.length !== parsed.length) {
+            saveToAllKeys(PERSISTENCE_KEYS.PRODUCTS, JSON.stringify(filtered));
+          }
+          return filtered;
         }
       }
-      return initialProducts;
+      return initialProducts.filter((p) => !isDemoProduct(p));
     } catch {
-      return initialProducts;
+      return [];
     }
   });
 
@@ -343,6 +435,44 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         navigator.serviceWorker.removeEventListener('message', handleSwMessage);
       };
     }
+  }, []);
+
+  // Strict purge effect: cleans any remnant demo products and old snapshots on mount
+  useEffect(() => {
+    // 1. Purge from current products state and all storage keys
+    setProducts((current) => {
+      const cleaned = current.filter((p) => !isDemoProduct(p));
+      if (cleaned.length !== current.length) {
+        saveToAllKeys(PERSISTENCE_KEYS.PRODUCTS, JSON.stringify(cleaned));
+      }
+      return cleaned;
+    });
+
+    // 2. Sanitize stored snapshots so restoring an older snapshot never revives demo products
+    try {
+      const snapsRaw = getStoredValue(PERSISTENCE_KEYS.SNAPSHOTS);
+      if (snapsRaw) {
+        const snaps = JSON.parse(snapsRaw);
+        if (Array.isArray(snaps)) {
+          let modified = false;
+          const cleanedSnaps = snaps.map((s: StoredBackupSnapshot) => {
+            if (s.data && Array.isArray(s.data.products)) {
+              const beforeCount = s.data.products.length;
+              s.data.products = s.data.products.filter((p: Product) => !isDemoProduct(p));
+              if (s.data.products.length !== beforeCount) {
+                s.productsCount = s.data.products.length;
+                modified = true;
+              }
+            }
+            return s;
+          });
+          if (modified) {
+            saveToAllKeys(PERSISTENCE_KEYS.SNAPSHOTS, JSON.stringify(cleanedSnaps));
+            setSnapshots(cleanedSnaps);
+          }
+        }
+      }
+    } catch {}
   }, []);
 
   // Automatic Daily Backup: executes automatically if a new day has arrived
@@ -582,10 +712,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const importProductsList = (newProds: Product[], replace: boolean) => {
+    const sanitized = (newProds || []).filter((p) => !isDemoProduct(p));
     if (replace) {
-      setProducts(newProds);
+      setProducts(sanitized);
     } else {
-      setProducts((prev) => [...newProds, ...prev]);
+      setProducts((prev) => [...sanitized, ...prev.filter((p) => !isDemoProduct(p))]);
     }
   };
 

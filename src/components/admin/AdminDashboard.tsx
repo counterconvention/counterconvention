@@ -206,9 +206,10 @@ export const AdminDashboard: React.FC<Props> = ({ onNavigateToTab }) => {
           <div className="text-2xl font-extrabold text-neutral-900 font-sans">
             R$ {totalRevenue.toFixed(2).replace('.', ',')}
           </div>
-          <div className="text-[11px] text-emerald-700 flex items-center gap-1 font-medium">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>+18.4% vs mês anterior</span>
+          <div className="text-[11px] text-neutral-500 font-medium">
+            {totalOrdersCount > 0
+              ? `${completedOrPendingOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0)} itens vendidos no total`
+              : 'Nenhum pedido registrado'}
           </div>
         </div>
 

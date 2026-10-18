@@ -7,9 +7,11 @@ import { AdminOrders } from './AdminOrders';
 import { AdminNotifications } from './AdminNotifications';
 import { AdminCsv } from './AdminCsv';
 import { AdminSettings } from './AdminSettings';
+import { AdminCategories } from './AdminCategories';
 import {
   LayoutDashboard,
   ShoppingBag,
+  Layers,
   Boxes,
   ClipboardList,
   Bell,
@@ -21,6 +23,7 @@ import {
 export type AdminTab =
   | 'dashboard'
   | 'products'
+  | 'categories'
   | 'stock'
   | 'orders'
   | 'notifications'
@@ -53,6 +56,11 @@ export const AdminLayout: React.FC = () => {
       id: 'products',
       label: 'Produtos',
       icon: <ShoppingBag className="w-4 h-4" />
+    },
+    {
+      id: 'categories',
+      label: 'Categorias',
+      icon: <Layers className="w-4 h-4" />
     },
     {
       id: 'stock',
@@ -127,9 +135,9 @@ export const AdminLayout: React.FC = () => {
 
             {/* Right: Quick Operational Indicators & Standardized Return Button */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Catálogo Online</span>
+              <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-neutral-100 text-neutral-700 border border-neutral-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                <span>Loja Online</span>
               </div>
 
               <button
@@ -190,13 +198,16 @@ export const AdminLayout: React.FC = () => {
             }}
           />
         )}
+        {activeTab === 'categories' && <AdminCategories />}
         {activeTab === 'stock' && (
           <AdminStock initialSearchTerm={stockSearchTarget} />
         )}
         {activeTab === 'orders' && <AdminOrders />}
         {activeTab === 'notifications' && <AdminNotifications />}
         {activeTab === 'csv' && <AdminCsv />}
-        {activeTab === 'settings' && <AdminSettings />}
+        {activeTab === 'settings' && (
+          <AdminSettings onNavigateToTab={(tab) => setActiveTab(tab as AdminTab)} />
+        )}
       </main>
     </div>
   );

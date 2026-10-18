@@ -250,7 +250,7 @@ export const AdminStock: React.FC<AdminStockProps> = ({ initialSearchTerm = '' }
                 (sum, p) => sum + p.sizes.reduce((sSum, s) => sSum + s.quantity, 0),
                 0
               )}{' '}
-              <span className="text-xs font-normal text-neutral-500">peças</span>
+              <span className="text-xs font-normal text-neutral-500">unidades</span>
             </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center">
@@ -451,10 +451,10 @@ export const AdminStock: React.FC<AdminStockProps> = ({ initialSearchTerm = '' }
                               : 'bg-emerald-100 text-emerald-800'
                           }`}
                         >
-                          Total: {totalStock} peças
+                          Total: {totalStock} un.
                         </span>
                         <span className="text-[10px] text-neutral-400 font-medium">
-                          {p.sizeSystem === 'numeric' ? 'Grade Numérica' : 'Grade Letras'}
+                          {p.sizeSystem === 'generic' ? 'Tamanho Único' : p.sizeSystem === 'numeric' ? 'Grade Numérica' : 'Grade Letras'}
                         </span>
                       </div>
                     </div>
@@ -544,7 +544,7 @@ export const AdminStock: React.FC<AdminStockProps> = ({ initialSearchTerm = '' }
                         setTimeout(() => setFeedbackMsg(''), 3500);
                       }}
                       className="text-[11px] font-semibold text-rose-700 hover:text-rose-900 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Zerar todos os tamanhos desta peça"
+                      title="Zerar todos os tamanhos deste produto"
                     >
                       <Ban className="w-3 h-3 text-rose-600" />
                       <span>Zerar Tudo</span>

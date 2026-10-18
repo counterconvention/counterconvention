@@ -21,7 +21,8 @@ import {
   X,
   Check,
   Ruler,
-  Boxes
+  Boxes,
+  ShoppingBag
 } from 'lucide-react';
 
 const createSizesForSystem = (
@@ -159,12 +160,12 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({ onNavigateToStock 
     const parsedImages = formData.images
       .split(/[\n,]/)
       .map((img) => img.trim())
-      .filter((img) => img.startsWith('http'));
+      .filter((img) => img.length > 0);
 
     const finalImages =
       parsedImages.length > 0
         ? parsedImages
-        : ['https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=1000&q=85'];
+        : ['/src/assets/images/generic_product_backpack_1791981744366.jpg'];
 
     const existingProd = editingProductId ? products.find((p) => p.id === editingProductId) : null;
     const finalSizes = existingProd
@@ -266,7 +267,7 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({ onNavigateToStock 
           <table className="w-full text-xs text-left">
             <thead className="bg-neutral-50 text-neutral-500 font-semibold uppercase tracking-wider border-b border-neutral-200">
               <tr>
-                <th className="py-3 px-4">Look</th>
+                <th className="py-3 px-4">Produto</th>
                 <th className="py-3 px-4">Categoria</th>
                 <th className="py-3 px-4">Preço Venda</th>
                 <th className="py-3 px-4">Preço Fabricação</th>
@@ -276,116 +277,129 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({ onNavigateToStock 
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {filteredProducts.map((p) => {
-                const totalStock = p.sizes.reduce((sum, s) => sum + s.quantity, 0);
-                const unitProfit = p.salePrice - p.costPrice;
-                const margin = p.salePrice > 0 ? ((unitProfit / p.salePrice) * 100).toFixed(1) : '0';
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-neutral-400">
+                    <ShoppingBag className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                    <p className="font-semibold text-neutral-700">Nenhum produto cadastrado</p>
+                    <p className="text-neutral-400 mt-1 max-w-sm mx-auto">
+                      {searchTerm
+                        ? `Nenhum resultado para "${searchTerm}".`
+                        : 'Utilize o botão acima "Cadastrar Novo Produto" para adicionar itens reais ao catálogo da loja.'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((p) => {
+                  const totalStock = p.sizes.reduce((sum, s) => sum + s.quantity, 0);
+                  const unitProfit = p.salePrice - p.costPrice;
+                  const margin = p.salePrice > 0 ? ((unitProfit / p.salePrice) * 100).toFixed(1) : '0';
 
-                return (
-                  <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={p.images[0]}
-                          alt={p.name}
-                          className="w-10 h-12 rounded-lg object-cover bg-neutral-100 shrink-0 border border-neutral-200"
-                        />
-                        <div>
-                          <span className="font-bold text-neutral-900 block line-clamp-1">
-                            {p.name}
-                          </span>
-                          <span className="text-[11px] text-neutral-400">
-                            {p.colors.slice(0, 2).join(', ')}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-neutral-700">
-                      <span className="px-2.5 py-1 bg-neutral-100 rounded-md">
-                        {p.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-extrabold text-neutral-900">
-                      R$ {p.salePrice.toFixed(2).replace('.', ',')}
-                      {p.isPromo && p.promoPrice && (
-                        <span className="block text-[10px] text-rose-600 font-bold">
-                          Promo: R$ {p.promoPrice.toFixed(2).replace('.', ',')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-neutral-600 font-mono">
-                      R$ {p.costPrice.toFixed(2).replace('.', ',')}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-bold text-emerald-700 block">
-                        +R$ {unitProfit.toFixed(2).replace('.', ',')}
-                      </span>
-                      <span className="text-[10px] text-neutral-500 font-medium">
-                        {margin}% margem
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="space-y-1">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-md font-bold text-[11px] ${
-                            totalStock === 0
-                              ? 'bg-rose-100 text-rose-800'
-                              : totalStock <= 3
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}
-                        >
-                          {totalStock} un. no total
-                        </span>
-                        <div className="flex items-center gap-1 flex-wrap text-[10px] text-neutral-600 font-mono">
-                          {p.sizes.map((s) => (
-                            <span
-                              key={s.size}
-                              className={`px-1 py-0.5 rounded ${
-                                s.quantity <= 0 ? 'bg-rose-50 text-rose-500 line-through' : 'bg-neutral-100'
-                              }`}
-                            >
-                              {s.size}:{s.quantity}
+                  return (
+                    <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={p.images[0]}
+                            alt={p.name}
+                            className="w-10 h-12 rounded-lg object-cover bg-neutral-100 shrink-0 border border-neutral-200"
+                          />
+                          <div>
+                            <span className="font-bold text-neutral-900 block line-clamp-1">
+                              {p.name}
                             </span>
-                          ))}
+                            <span className="text-[11px] text-neutral-400">
+                              {p.colors.slice(0, 2).join(', ')}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {onNavigateToStock && (
-                          <button
-                            onClick={() => onNavigateToStock(p.name)}
-                            className="px-2 py-1 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                            title="Gerenciar estoque individual por tamanho deste look"
-                          >
-                            <Boxes className="w-3.5 h-3.5 text-amber-700" />
-                            <span className="hidden sm:inline">Estoque</span>
-                          </button>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-neutral-700">
+                        <span className="px-2.5 py-1 bg-neutral-100 rounded-md">
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-extrabold text-neutral-900">
+                        R$ {p.salePrice.toFixed(2).replace('.', ',')}
+                        {p.isPromo && p.promoPrice && (
+                          <span className="block text-[10px] text-rose-600 font-bold">
+                            Promo: R$ {p.promoPrice.toFixed(2).replace('.', ',')}
+                          </span>
                         )}
-                        <button
-                          onClick={() => handleOpenEdit(p)}
-                          className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
-                          title="Editar Look no Catálogo"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Deseja excluir "${p.name}"?`)) {
-                              deleteProduct(p.id);
-                            }
-                          }}
-                          className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Excluir Peça"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="py-3 px-4 text-neutral-600 font-mono">
+                        R$ {p.costPrice.toFixed(2).replace('.', ',')}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-emerald-700 block">
+                          +R$ {unitProfit.toFixed(2).replace('.', ',')}
+                        </span>
+                        <span className="text-[10px] text-neutral-500 font-medium">
+                          {margin}% margem
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                              totalStock === 0
+                                ? 'bg-rose-100 text-rose-800'
+                                : totalStock <= 3
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {totalStock} un. no total
+                          </span>
+                          <div className="flex items-center gap-1 flex-wrap text-[10px] text-neutral-600 font-mono">
+                            {p.sizes.map((s) => (
+                              <span
+                                key={s.size}
+                                className={`px-1 py-0.5 rounded ${
+                                  s.quantity <= 0 ? 'bg-rose-50 text-rose-500 line-through' : 'bg-neutral-100'
+                                }`}
+                              >
+                                {s.size}:{s.quantity}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {onNavigateToStock && (
+                            <button
+                              onClick={() => onNavigateToStock(p.name)}
+                              className="px-2 py-1 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Gerenciar estoque deste produto"
+                            >
+                              <Boxes className="w-3.5 h-3.5 text-amber-700" />
+                              <span className="hidden sm:inline">Estoque</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOpenEdit(p)}
+                            className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                            title="Editar Produto"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const ok = window.confirm(`Deseja excluir o produto "${p.name}"?`);
+                              if (ok) deleteProduct(p.id);
+                            }}
+                            className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Excluir Produto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -400,7 +414,7 @@ export const AdminProducts: React.FC<AdminProductsProps> = ({ onNavigateToStock 
           >
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <h3 className="font-sans font-bold text-lg text-neutral-900">
-                {editingProductId ? 'Editar Peça do Catálogo' : 'Cadastrar Nova Peça'}
+                {editingProductId ? 'Editar Produto do Catálogo' : 'Cadastrar Novo Produto'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}

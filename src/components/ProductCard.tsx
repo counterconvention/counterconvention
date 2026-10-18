@@ -192,12 +192,12 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
           {/* Action Buttons Grid */}
           <div className="pt-1" onClick={(e) => e.stopPropagation()}>
             {settings.whatsappEnabled !== false ? (
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleQuickAdd}
                   disabled={isOutOfStock}
                   title="Adicionar à sacola"
-                  className={`h-8 sm:h-8.5 px-1.5 sm:px-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`h-9 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     addedSuccess
                       ? 'bg-emerald-600 text-white'
                       : isOutOfStock
@@ -222,10 +222,10 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
                   onClick={handleDirectWhatsApp}
                   disabled={isOutOfStock}
                   title="Pedir direto no WhatsApp"
-                  className="h-8 sm:h-8.5 px-1.5 sm:px-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1 shadow-2xs transition-all active:scale-97 cursor-pointer"
+                  className="h-9 px-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-97 cursor-pointer"
                 >
                   <WhatsAppIcon className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span className="truncate">Whats</span>
+                  <span className="truncate">WhatsApp</span>
                 </button>
               </div>
             ) : (
@@ -233,7 +233,7 @@ export const ProductCard: React.FC<Props> = ({ product, onOpenModal }) => {
                 onClick={handleQuickAdd}
                 disabled={isOutOfStock}
                 title="Adicionar à sacola"
-                className={`w-full h-8 sm:h-8.5 px-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`w-full h-9 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   addedSuccess
                     ? 'bg-emerald-600 text-white'
                     : isOutOfStock

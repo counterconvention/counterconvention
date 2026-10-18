@@ -439,7 +439,7 @@ export const ProductModal: React.FC<Props> = ({
             <button
               onClick={handleAddToCart}
               disabled={!isSizeAvailable}
-              className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
+              className={`w-full h-12 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
                 addedSuccess
                   ? 'bg-emerald-600 text-white'
                   : !isSizeAvailable
@@ -466,7 +466,7 @@ export const ProductModal: React.FC<Props> = ({
               <button
                 onClick={handleBuyWhatsAppNow}
                 disabled={!isSizeAvailable}
-                className="w-full py-3 px-6 rounded-2xl font-bold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98 cursor-pointer"
+                className="w-full h-12 px-6 rounded-2xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98 cursor-pointer"
               >
                 <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
                   <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.062-2.124-.531-1.828-.758-2.996-2.614-3.087-2.735-.09-.12-1.205-1.603-1.205-3.057 0-1.455.765-2.169 1.036-2.459.271-.29.593-.362.79-.362.197 0 .394.002.566.01.184.008.43-.07.672.512.25.603.854 2.085.928 2.235.074.15.124.325.025.522-.099.197-.148.32-.295.492-.148.172-.311.385-.445.516-.148.147-.302.308-.13.604.172.296.766 1.264 1.644 2.046 1.129 1.006 2.08 1.317 2.376 1.464.296.147.469.123.642-.074.172-.198.739-.861.936-1.156.197-.295.394-.246.665-.147.271.098 1.722.812 2.018.96.296.148.493.222.566.345.074.123.074.714-.07 1.119z" />
@@ -480,7 +480,7 @@ export const ProductModal: React.FC<Props> = ({
                 href={settings.discordUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-3 px-6 rounded-2xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98 cursor-pointer"
+                className="w-full h-12 px-6 rounded-2xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98 cursor-pointer"
               >
                 <span>Tirar Dúvidas no Discord</span>
               </a>

@@ -250,7 +250,7 @@ export const CatalogFilterHub: React.FC<Props> = ({
               <button
                 key={cat.id}
                 onClick={() => onSelectCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                className={`h-8 sm:h-8.5 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                   isSelected
                     ? 'bg-neutral-900 text-white shadow-2xs'
                     : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border border-neutral-200/70'

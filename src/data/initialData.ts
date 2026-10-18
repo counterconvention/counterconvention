@@ -79,8 +79,8 @@ export const instagramFeedPosts: InstagramPost[] = [
   },
   {
     id: 'post-02',
-    imageUrl: '/src/assets/images/generic_product_smartwatch_1791981743151.jpg',
-    caption: 'Precisão nos detalhes. Construído com materiais selecionados.',
+    imageUrl: '/src/assets/images/generic_product_desklamp_1791981745000.jpg',
+    caption: 'Estética contemporânea e funcionalidade em cada detalhe.',
     likes: 198,
     comments: 24
   },

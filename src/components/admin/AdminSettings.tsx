@@ -23,10 +23,15 @@ import {
   HelpCircle,
   Shield,
   Layers,
-  Radio
+  Radio,
+  ExternalLink
 } from 'lucide-react';
 
-export const AdminSettings: React.FC = () => {
+interface AdminSettingsProps {
+  onNavigateToTab?: (tab: string) => void;
+}
+
+export const AdminSettings: React.FC<AdminSettingsProps> = ({ onNavigateToTab }) => {
   const { settings, updateSettings, addNotification } = useStore();
   const [formData, setFormData] = useState<StoreSettings>({ ...settings });
   const [savedFeedback, setSavedFeedback] = useState(false);
@@ -476,22 +481,35 @@ export const AdminSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. Gestor de Categorias & Segmento Versátil */}
+        {/* 3. Gestor de Categorias do Catálogo */}
         <div className="bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2.5 pb-2 border-b border-neutral-100">
-            <Layers className="w-5 h-5 text-neutral-900" />
-            <div>
-              <h3 className="font-sans font-bold text-neutral-900 text-base">
-                Categorias & Segmento do Catálogo
-              </h3>
-              <p className="text-xs text-neutral-500">
-                Personalize as categorias da loja para vender qualquer tipo de produto (Tech, Acessórios, Casa, etc.).
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-neutral-100">
+            <div className="flex items-center gap-2.5">
+              <Layers className="w-5 h-5 text-neutral-900" />
+              <div>
+                <h3 className="font-sans font-bold text-neutral-900 text-base">
+                  Categorias do Catálogo
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Defina as categorias ativas da sua loja (Eletrônicos, Acessórios, Casa, etc.).
+                </p>
+              </div>
             </div>
+
+            {onNavigateToTab && (
+              <button
+                type="button"
+                onClick={() => onNavigateToTab('categories')}
+                className="h-9 px-3.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+              >
+                <span>Aba Completa de Categorias</span>
+                <ExternalLink className="w-3.5 h-3.5 text-neutral-600" />
+              </button>
+            )}
           </div>
 
           {/* Current Categories Chips */}
-          <div className="pt-2">
+          <div className="pt-1">
             <span className="text-[11px] font-bold text-neutral-700 block mb-2">
               Categorias Ativas ({currentCategories.length}):
             </span>
@@ -518,12 +536,12 @@ export const AdminSettings: React.FC = () => {
           </div>
 
           {/* Add Category Row */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-1">
             <input
               type="text"
               value={newCategoryInput}
               onChange={(e) => setNewCategoryInput(e.target.value)}
-              placeholder="Nome de uma nova categoria..."
+              placeholder="Adicionar nova categoria rápida..."
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -535,10 +553,10 @@ export const AdminSettings: React.FC = () => {
             <button
               type="button"
               onClick={handleAddCategory}
-              className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-9 px-4 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Adicionar Categoria</span>
+              <span>Adicionar</span>
             </button>
           </div>
         </div>
